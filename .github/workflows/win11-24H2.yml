@@ -1,30 +1,53 @@
-name: Build Win11 24H2 amd64 ISO
-on:
-  workflow_dispatch: # 手动一键启动打包ISO
+name: Windows11_24H2_amd64
+
+on: workflow_dispatch
+#on: [push, pull_request]
+
+env:
+  Build_VERSION: '26100.8524'
+  FILE_NAME: Windows11_24H2_amd64
+
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  Windows11_24H2_amd64:
+    runs-on: windows-latest
+
     steps:
-      - uses: actions/checkout@main
-      - name: Install依赖
-        run: |
-          sudo apt update
-          sudo apt install -y aria2 cabextract wimtools chntpw genisoimage
-      - name: 拉取UUP转换脚本
-        run: git clone https://git.uupdump.net/uup-dump/converter.git tools
-      - name: 下载UUP源文件
-        run: |
-          cd Win11_24H2_amd64
-          bash download.sh
-      - name: 编译ISO
-        run: |
-          mv Win11_24H2_amd64/* tools/UUPs/
-          cd tools
-          bash convert.sh
-      - name: 上传ISO到Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: Win11_24H2_${{ github.sha }}
-          files: tools/*.iso
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    # 检出本仓库
+    - name: Checkout repository
+      uses: actions/checkout@v5
+
+    # 制作ISO
+    - name: UUP dump WinISO
+      shell: cmd
+      run: |
+        cd ${{env.FILE_NAME}}
+        dir
+        uup_download_windows.cmd
+
+    # 查看目录
+    - name: dir dir
+      shell: cmd
+      run: |
+        cd ${{env.FILE_NAME}}
+        dir
+
+    # 打包
+    - name: Package binaries
+      run: |
+        #ls     #Directory: D:\a\UUPdumpWinISO\UUPdumpWinISO(即仓库目录)
+        7z a -v1950M ${{env.FILE_NAME}}-${{env.Build_VERSION}}.7z ./${{env.FILE_NAME}}/*.iso -mx=9
+
+    # 上传镜像
+    - uses: actions/upload-artifact@v4
+      with:
+        name: ${{env.FILE_NAME}}-${{env.Build_VERSION}}
+        path: ${{env.FILE_NAME}}-${{env.Build_VERSION}}.7z*
+
+    # 发布镜像
+    - name: Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{env.FILE_NAME}}-${{env.Build_VERSION}}
+        release_name: ${{env.FILE_NAME}}-${{env.Build_VERSION}}
+        files: ${{env.FILE_NAME}}-${{env.Build_VERSION}}.7z*
