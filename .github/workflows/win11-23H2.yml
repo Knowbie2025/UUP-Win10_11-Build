@@ -6,54 +6,65 @@ permissions:
   contents: write
 
 env:
-  Build_VERSION: '22631.7079a'
+  Build_VERSION: '22631.6936'
   FILE_NAME: Windows11_23H2_amd64
-  FIX_TAG: Windows11_23H2_amd64
+  FIX_RELEASE_TAG: Windows11_23H2_amd64
 
 jobs:
-  Windows11_23H2_amd64:
+  Build_UUP:
     runs-on: windows-latest
-
     steps:
-    # 检出仓库
-    - name: Checkout repository
-      uses: actions/checkout@v5
+      - name: Checkout repository
+        uses: actions/checkout@v5
 
-    # 安装7zip
-    - name: Install 7-Zip
-      run: choco install 7zip -y
-      env:
-        PATH: "C:\\Program Files\\7-Zip;$Env:PATH"
+      # 安装7-Zip
+      - name: Install 7-Zip via winget
+        shell: powershell
+        run: |
+          winget install -e --id 7zip.7zip --silent --accept-package-agreements --accept-source-agreements
+        env:
+          PATH: "C:\\Program Files\\7-Zip;$env:PATH"
 
-    # UUP生成ISO
-    - name: UUP dump WinISO
-      shell: cmd
-      run: |
-        cd %FILE_NAME%
-        dir
-        uup_download_windows.cmd
+      # UUP编译ISO
+      - name: UUP dump build ISO
+        shell: cmd
+        run: |
+          cd %FILE_NAME%
+          dir
+          uup_download_windows.cmd
 
-    - name: dir dir
-      shell: cmd
-      run: |
-        cd %FILE_NAME%
-        dir
+      - name: List ISO files
+        shell: cmd
+        run: |
+          cd %FILE_NAME%
+          dir *.iso
 
-    # 1900MB分卷打包
-    - name: Package binaries
-      shell: cmd
-      run: |
-        7z a -v1900M %FIX_TAG%.7z ./%FILE_NAME%/*.iso -mx=9
+      # ========== ZIP分卷核心：-tzip指定ZIP格式，-v1900M单卷1.9GB ==========
+      - name: Split pack ZIP(1.9G per part)
+        shell: cmd
+        run: |
+          7z a -tzip -v1900M %FIX_RELEASE_TAG%.zip ./%FILE_NAME%/*.iso -mx=6
+      # 参数说明：
+      # -tzip=打包为标准ZIP格式；-v1900M=单分卷1900MB；-mx=6 ZIP中等压缩
 
-    # 固定Tag发布到Release
-    - name: Release
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: ${{ env.FIX_TAG }}
-        release_name: Windows11_23H2_amd64
-        overwrite: true
-        files: |
-          ${{ env.FIX_TAG }}.7z.*
-        body: |
-          编译版本：${{ env.Build_VERSION }}
-          分卷规格：7z 1900MB/卷，全部下载后双击.7z.001自动解压完整ISO
+      # 制品缓存
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.FIX_RELEASE_TAG }}
+          path: ${{ env.FIX_RELEASE_TAG }}.zip*
+
+      # 上传固定Release：/releases/tag/Windows11_23H2_amd64，重复运行覆盖附件
+      - name: Publish to fixed Release Tag
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.FIX_RELEASE_TAG }}
+          release_name: Windows11_23H2_amd64
+          overwrite: true
+          files: |
+            ${{ env.FIX_RELEASE_TAG }}.zip.*
+          body: |
+            系统版本：Win11 23H2 Build ${{ env.Build_VERSION }}
+            打包格式：标准ZIP分卷，单卷1900MB(1.9GB)
+            文件后缀：.zip.001/.zip.002...
+            解压：全部分卷放同一目录，打开.zip.001即可提取完整ISO
