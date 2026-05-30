@@ -1,0 +1,30 @@
+name: Build Win11 24H2 amd64 ISO
+on:
+  workflow_dispatch: # 手动一键启动打包
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@main
+      - name: Install依赖
+        run: |
+          sudo apt update
+          sudo apt install -y aria2 cabextract wimtools chntpw genisoimage
+      - name: 拉取UUP转换脚本
+        run: git clone https://git.uupdump.net/uup-dump/converter.git tools
+      - name: 下载UUP源文件
+        run: |
+          cd Win11_24H2_amd64
+          bash download.sh
+      - name: 编译ISO
+        run: |
+          mv Win11_24H2_amd64/* tools/UUPs/
+          cd tools
+          bash convert.sh
+      - name: 上传ISO到Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: Win11_24H2_${{ github.sha }}
+          files: tools/*.iso
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
