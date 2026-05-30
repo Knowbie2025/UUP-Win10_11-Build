@@ -1,33 +1,32 @@
 name: Windows11_23H2_amd64
 
-# 提交代码自动执行+手动运行
-on:
-  workflow_dispatch:
-  push:
-    branches: [ main, master ]
-
-permissions:
-  contents: write
+on: workflow_dispatch
 
 env:
-  Build_VERSION: '22631.7079'
-  FILE_NAME: 'Windows11_23H2_amd64'
+  Build_VERSION: '22631.6936'
+  FILE_NAME: Windows11_23H2_amd64
+  FIX_TAG: Windows11_23H2_amd64 #固定目标Release标签
+
+#必须开启写入权限，否则无法修改Release附件
+permissions:
+  contents: write
 
 jobs:
   Windows11_23H2_amd64:
     runs-on: windows-latest
 
     steps:
-    # 拉取代码
     - name: Checkout repository
       uses: actions/checkout@v5
 
-    # 不存在就自动创建文件夹
-    - name: Create Work Folder
-    shell: cmd
-    run: if not exist %FILE_NAME% md %FILE_NAME%
+    #安装7zip（windows-latest默认不带命令行7z）
+    - name: Install 7-Zip
+      run: choco install 7zip -y
+    #配置7z环境变量
+    env:
+      PATH: "C:\\Program Files\\7-Zip;$Env:PATH"
 
-    # 运行UUP脚本
+    #UUP生成ISO
     - name: UUP dump WinISO
       shell: cmd
       run: |
@@ -35,31 +34,31 @@ jobs:
         dir
         uup_download_windows.cmd
 
-    - name: Check dir
+    - name: 查看生成目录
       shell: cmd
       run: |
         cd %FILE_NAME%
         dir
 
-    # 安装7zip
-    - name: Install 7Zip
-      run: choco install 7zip -y
-
-    # 压缩打包
-    - name: Package binaries
+    #分卷压缩：1900MB单卷 -v1900M，不附带版本在压缩包名
+    - name: Package split 1900MB
+      shell: cmd
       run: |
-        "C:\Program Files\7-Zip\7z.exe" a -v1950M %FILE_NAME%-%Build_VERSION%.7z ./%FILE_NAME%/*.iso -mx=9
+        7z a -v1900M %FIX_TAG%.7z ./%FILE_NAME%/*.iso -mx=9
 
-    # 上传产物
-    - uses: actions/upload-artifact@v4
-      with:
-        name: ${{env.FILE_NAME}}-${{env.Build_VERSION}}
-        path: ${{env.FILE_NAME}}-${{env.Build_VERSION}}.7z*
+    #删掉无用artifact步骤（不需要存流水线产物，直接发Release）
+    #- uses: actions/upload-artifact@v4 ... 已移除
 
-    # 自动发布Release
-    - name: Release
+    #发布到固定tag：Windows11_23H2_amd64，overwrite覆盖已有文件
+    - name: Release upload to FIX_TAG
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: ${{env.FILE_NAME}}-${{env.Build_VERSION}}
-        release_name: ${{env.FILE_NAME}}-${{env.Build_VERSION}}
-        files: ${{env.FILE_NAME}}-${{env.Build_VERSION}}.7z*
+        tag_name: ${{ env.FIX_TAG }}
+        release_name: Windows11 23H2 amd64
+        overwrite: true #重复构建自动覆盖同名称分卷
+        files: |
+          ${{ env.FIX_TAG }}.7z.*
+        body: |
+          系统版本：${{ env.Build_VERSION }}
+          分卷规格：7z 1900MB/卷
+          解压：全部下载后双击 .7z.001 合并出完整ISO
