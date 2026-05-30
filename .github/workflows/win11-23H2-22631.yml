@@ -1,66 +1,57 @@
-name: Windows11_23H2_amd64
-
-on: workflow_dispatch
-
-permissions:
-  contents: write
-
+name: Build ISO Split Zip
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch: # 支持手动运行
 env:
-  Build_VERSION: '22631.6936'
+  FIX_RELEASE_TAG: ${{ github.ref_name }}
   FILE_NAME: Windows11_23H2_amd64
-  FIX_RELEASE_TAG: Windows11_23H2_amd64
-
+permissions:
+  contents: write # 用于发布Release
 jobs:
-  Build_UUP:
+  build_pack:
     runs-on: windows-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
+      # 拉取仓库源码
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
 
-      # 离线下载官方7zip安装包静默安装
-      - name: Install 7zip offline
-        shell: cmd
-        run: |
-          curl -L -o 7z.exe https://www.7-zip.org/a/7z2408-x64.msi
-          msiexec /i 7z2408-x64.msi /qn
-          set "PATH=%PATH%;C:\Program Files\7-Zip"
-
-      # UUP生成ISO
-      - name: UUP dump build ISO
-        shell: cmd
-        run: |
-          cd %FILE_NAME%
-          dir
-          uup_download_windows.cmd
-
-      - name: List ISO files
-        shell: cmd
+      # 列出ISO校验文件存在
+      - name: List ISO Files
         run: |
           cd %FILE_NAME%
           dir *.iso
+          cd ..
 
-      # 标准ZIP分卷1900MB
-      - name: Split pack ZIP(1.9G per part)
-        shell: cmd
+      # 自动安装7-Zip（抛弃自带7z.exe，解决架构报错）
+      - name: Install Official 7-Zip
+        uses: ilammy/setup-7zip@v1
+
+      # 分卷打包 单卷1900MB ZIP
+      - name: Split Compress ZIP(1.9G/part)
         run: |
           7z a -tzip -v1900M %FIX_RELEASE_TAG%.zip ./%FILE_NAME%/*.iso -mx=6
 
-      - name: Upload build artifact
+      # 上传打包分卷为工作流制品
+      - name: Upload Split Zip Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.FIX_RELEASE_TAG }}
-          path: ${{ env.FIX_RELEASE_TAG }}.zip*
+          name: ISO-Split-Zip-Pack
+          path: |
+            *.zip
+            *.z01
+            *.z02
+            *.z*
 
-      # 上传固定Release
-      - name: Publish to fixed Release Tag
-        uses: softprops/action-gh-release@v2
+      # 自动发布到GitHub Release
+      - name: Create Github Release
+        uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ env.FIX_RELEASE_TAG }}
-          release_name: Windows11_23H2_amd64
-          overwrite: true
+          name: Release ${{ env.FIX_RELEASE_TAG }}
           files: |
-            ${{ env.FIX_RELEASE_TAG }}.zip.*
-          body: |
-            系统版本：Win11 23H2 Build ${{ env.Build_VERSION }}
-            打包格式：标准ZIP分卷，单卷1900MB
-            后缀：.zip.001/.zip.002，全部下载同一目录打开001解压
+            *.zip
+            *.z01
+            *.z02
+            *.z*
