@@ -1,1 +1,66 @@
+name: Windows11_26H1_amd64
 
+on: workflow_dispatch
+
+permissions:
+  contents: write
+
+env:
+  Build_VERSION: '28000.2179'
+  FILE_NAME: Windows11_26H1_amd64
+  FIX_RELEASE_TAG: Windows11_26H1_amd64
+
+jobs:
+  Build_UUP:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      # 离线下载官方7zip安装包静默安装
+      - name: Install 7zip offline
+        shell: cmd
+        run: |
+          curl -L -o 7z.exe https://www.7-zip.org/a/7z2408-x64.msi
+          msiexec /i 7z2408-x64.msi /qn
+          set "PATH=%PATH%;C:\Program Files\7-Zip"
+
+      # UUP生成ISO
+      - name: UUP dump build ISO
+        shell: cmd
+        run: |
+          cd %FILE_NAME%
+          dir
+          uup_download_windows.cmd
+
+      - name: List ISO files
+        shell: cmd
+        run: |
+          cd %FILE_NAME%
+          dir *.iso
+
+      # 标准ZIP分卷1900MB
+      - name: Split pack ZIP(1.9G per part)
+        shell: cmd
+        run: |
+          7z a -tzip -v1900M %FIX_RELEASE_TAG%.zip ./%FILE_NAME%/*.iso -mx=6
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.FIX_RELEASE_TAG }}
+          path: ${{ env.FIX_RELEASE_TAG }}.zip*
+
+      # 上传固定Release
+      - name: Publish to fixed Release Tag
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.FIX_RELEASE_TAG }}
+          release_name: Windows11_26H1_amd64
+          overwrite: true
+          files: |
+            ${{ env.FIX_RELEASE_TAG }}.zip.*
+          body: |
+            系统版本：Win11 26H1 Build ${{ env.Build_VERSION }}
+            打包格式：标准ZIP分卷，单卷1900MB
+            后缀：.zip.001/.zip.002，全部下载同一目录打开001解压
