@@ -24,8 +24,8 @@ jobs:
 
     # 不存在就自动创建文件夹
     - name: Create Work Folder
-      shell: cmd
-      run: md %FILE_NAME%
+    shell: cmd
+    run: if not exist %FILE_NAME% md %FILE_NAME%
 
     # 运行UUP脚本
     - name: UUP dump WinISO
