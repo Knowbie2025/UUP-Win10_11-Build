@@ -16,10 +16,9 @@ jobs:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      # Powershell语法读取环境变量 $env:xxx
       - name: List ISO Files
         run: |
-          cd $env:FILE_NAME
+          cd ${env:FILE_NAME}
           dir *.iso
           cd ..
 
@@ -29,10 +28,9 @@ jobs:
           choco install 7zip -y
           echo "${env:ProgramFiles}\7-Zip" | Out-File -FilePath $env:GITHUB_PATH -Append
 
-      # 压缩命令同步换成powershell变量写法
       - name: Split Compress ZIP(1.9G/part)
         run: |
-          7z a -tzip -v1900M $env:FIX_RELEASE_TAG.zip ./$env:FILE_NAME/*.iso -mx=6
+          7z a -tzip -v1900M ${env:FIX_RELEASE_TAG}.zip ./${env:FILE_NAME}/*.iso -mx=6
 
       - name: Upload Split Zip Artifact
         uses: actions/upload-artifact@v4
