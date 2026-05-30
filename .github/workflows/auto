@@ -1,0 +1,7 @@
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths: # 仅改动下面后缀文件才执行
+      - '**.yml'
+      - '**.cmd'
