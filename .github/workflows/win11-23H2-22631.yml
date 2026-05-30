@@ -30,7 +30,9 @@ jobs:
 
       - name: Split Compress ZIP(1.9G/part)
         run: |
-          7z a -tzip -v1900M ${env:FIX_RELEASE_TAG}.zip ./${env:FILE_NAME}/*.iso -mx=6
+          $zipName = "${env:FIX_RELEASE_TAG}.zip"
+          $srcPath = "./${env:FILE_NAME}/*.iso"
+          7z a -tzip -v1900M "`"$zipName`"" "`"$srcPath`"" -mx=6
 
       - name: Upload Split Zip Artifact
         uses: actions/upload-artifact@v4
