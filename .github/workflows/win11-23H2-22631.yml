@@ -16,23 +16,25 @@ jobs:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
+      # CMD查看ISO目录
       - name: List ISO Files
+        shell: cmd
         run: |
-          cd ${env:FILE_NAME}
+          cd %FILE_NAME%
           dir *.iso
           cd ..
 
+      # PS安装7zip不变
       - name: Install 7-Zip via Powershell
         shell: pwsh
         run: |
           choco install 7zip -y
           echo "${env:ProgramFiles}\7-Zip" | Out-File -FilePath $env:GITHUB_PATH -Append
 
+      # 关键：切CMD打包，%变量原生支持，路径不会乱转
       - name: Split Compress ZIP(1.9G/part)
-        run: |
-          $zipName = "${env:FIX_RELEASE_TAG}.zip"
-          $srcPath = "./${env:FILE_NAME}/*.iso"
-          7z a -tzip -v1900M "`"$zipName`"" "`"$srcPath`"" -mx=6
+        shell: cmd
+        run: 7z a -tzip -v1900M %FIX_RELEASE_TAG%.zip %FILE_NAME%\*.iso -mx=6
 
       - name: Upload Split Zip Artifact
         uses: actions/upload-artifact@v4
