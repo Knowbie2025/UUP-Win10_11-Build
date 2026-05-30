@@ -1,6 +1,6 @@
 name: Build Win11 24H2 amd64 ISO
 on:
-  workflow_dispatch: # 手动一键启动打包
+  workflow_dispatch: # 手动一键启动打包ISO
 jobs:
   build:
     runs-on: ubuntu-latest
