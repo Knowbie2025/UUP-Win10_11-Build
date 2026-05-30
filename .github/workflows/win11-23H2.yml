@@ -6,7 +6,7 @@ permissions:
   contents: write
 
 env:
-  Build_VERSION: '22631.7079'
+  Build_VERSION: '22631.7079a'
   FILE_NAME: Windows11_23H2_amd64
   FIX_TAG: Windows11_23H2_amd64
 
