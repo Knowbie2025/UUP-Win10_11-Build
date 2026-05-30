@@ -17,13 +17,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      # 安装7-Zip
-      - name: Install 7-Zip via winget
-        shell: powershell
-        run: |
-          winget install -e --id 7zip.7zip --silent --accept-package-agreements --accept-source-agreements
-        env:
-          PATH: "C:\\Program Files\\7-Zip;$env:PATH"
+      # 一键安装7zip官方Action，稳定不会报错
+      - name: Install 7-Zip
+        uses: mickael-menu/setup-7zip@v1
 
       # UUP编译ISO
       - name: UUP dump build ISO
@@ -39,22 +35,19 @@ jobs:
           cd %FILE_NAME%
           dir *.iso
 
-      # ========== ZIP分卷核心：-tzip指定ZIP格式，-v1900M单卷1.9GB ==========
+      # ZIP分卷1900MB
       - name: Split pack ZIP(1.9G per part)
         shell: cmd
         run: |
           7z a -tzip -v1900M %FIX_RELEASE_TAG%.zip ./%FILE_NAME%/*.iso -mx=6
-      # 参数说明：
-      # -tzip=打包为标准ZIP格式；-v1900M=单分卷1900MB；-mx=6 ZIP中等压缩
 
-      # 制品缓存
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.FIX_RELEASE_TAG }}
           path: ${{ env.FIX_RELEASE_TAG }}.zip*
 
-      # 上传固定Release：/releases/tag/Windows11_23H2_amd64，重复运行覆盖附件
+      # 固定tag发布Release
       - name: Publish to fixed Release Tag
         uses: softprops/action-gh-release@v2
         with:
@@ -65,6 +58,5 @@ jobs:
             ${{ env.FIX_RELEASE_TAG }}.zip.*
           body: |
             系统版本：Win11 23H2 Build ${{ env.Build_VERSION }}
-            打包格式：标准ZIP分卷，单卷1900MB(1.9GB)
-            文件后缀：.zip.001/.zip.002...
-            解压：全部分卷放同一目录，打开.zip.001即可提取完整ISO
+            打包格式：标准ZIP分卷，单卷1900MB
+            后缀：.zip.001/.zip.002，全下载放同一目录打开001解压
