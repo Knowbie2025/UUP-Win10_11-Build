@@ -1,4 +1,4 @@
-name: Build ISO Split Zip
+name: win11-23H2-22631
 on:
   push:
     tags:
