@@ -17,14 +17,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      # 离线下载官方7zip安装包静默安装
-      - name: Install 7zip offline
-        shell: cmd
-        run: |
-          curl -L -o 7z.exe https://www.7-zip.org/a/7z2408-x64.msi
-          msiexec /i 7z2408-x64.msi /qn
-          set "PATH=%PATH%;C:\Program Files\7-Zip"
-
       # UUP生成ISO
       - name: UUP dump build ISO
         shell: cmd
