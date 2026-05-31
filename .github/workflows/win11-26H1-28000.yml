@@ -40,20 +40,20 @@ jobs:
           choco install 7zip -y
           echo "${env:ProgramFiles}\7-Zip" | Out-File -FilePath $env:GITHUB_PATH -Append
 
-      # 关键：切CMD打包，%变量原生支持，路径不会乱转
+      # 关键修改：分卷包名自动带上 Build_VERSION 版本号
       - name: Split Compress ZIP(1.9G/part)
         shell: cmd
-        run: 7z a -tzip -v1900M %FIX_RELEASE_TAG%.zip %FILE_NAME%\*.iso -mx=6
+        run: 7z a -tzip -v1900M %FIX_RELEASE_TAG%_%Build_VERSION%.zip %FILE_NAME%\*.iso -mx=6
 
       - name: Upload Split Zip Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ISO-Split-Zip-Pack
           path: |
-            *.zip
-            *.z01
-            *.z02
-            *.z*
+            *%Build_VERSION%.zip
+            *%Build_VERSION%.z01
+            *%Build_VERSION%.z02
+            *%Build_VERSION%.z*
 
       - name: Create Github Release
         uses: softprops/action-gh-release@v1
@@ -61,7 +61,7 @@ jobs:
           tag_name: ${{ env.FIX_RELEASE_TAG }}
           name: Release ${{ env.FIX_RELEASE_TAG }}
           files: |
-            *.zip
-            *.z01
-            *.z02
-            *.z*
+            *%Build_VERSION%.zip
+            *%Build_VERSION%.z01
+            *%Build_VERSION%.z02
+            *%Build_VERSION%.z*
