@@ -6,7 +6,7 @@ permissions:
   contents: write
 
 env:
-  Build_VERSION: '28000.2179'
+  Build_VERSION: '28000.2113'
   FILE_NAME: Windows11_26H1_amd64
   FIX_RELEASE_TAG: Windows11_26H1_amd64
 
@@ -17,14 +17,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      # 离线下载官方7zip安装包静默安装
-      - name: Install 7zip offline
-        shell: cmd
-        run: |
-          curl -L -o 7z.exe https://www.7-zip.org/a/7z2408-x64.msi
-          msiexec /i 7z2408-x64.msi /qn
-          set "PATH=%PATH%;C:\Program Files\7-Zip"
-
       # UUP生成ISO
       - name: UUP dump build ISO
         shell: cmd
@@ -33,34 +25,43 @@ jobs:
           dir
           uup_download_windows.cmd
 
-      - name: List ISO files
+       # CMD查看ISO目录
+      - name: List ISO Files
         shell: cmd
         run: |
           cd %FILE_NAME%
           dir *.iso
+          cd ..
 
-      # 标准ZIP分卷1900MB
-      - name: Split pack ZIP(1.9G per part)
-        shell: cmd
+      # PS安装7zip不变
+      - name: Install 7-Zip via Powershell
+        shell: pwsh
         run: |
-          7z a -tzip -v1900M %FIX_RELEASE_TAG%.zip ./%FILE_NAME%/*.iso -mx=6
+          choco install 7zip -y
+          echo "${env:ProgramFiles}\7-Zip" | Out-File -FilePath $env:GITHUB_PATH -Append
 
-      - name: Upload build artifact
+      # 关键：切CMD打包，%变量原生支持，路径不会乱转
+      - name: Split Compress ZIP(1.9G/part)
+        shell: cmd
+        run: 7z a -tzip -v1900M %FIX_RELEASE_TAG%.zip %FILE_NAME%\*.iso -mx=6
+
+      - name: Upload Split Zip Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.FIX_RELEASE_TAG }}
-          path: ${{ env.FIX_RELEASE_TAG }}.zip*
+          name: ISO-Split-Zip-Pack
+          path: |
+            *.zip
+            *.z01
+            *.z02
+            *.z*
 
-      # 上传固定Release
-      - name: Publish to fixed Release Tag
-        uses: softprops/action-gh-release@v2
+      - name: Create Github Release
+        uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ env.FIX_RELEASE_TAG }}
-          release_name: Windows11_26H1_amd64
-          overwrite: true
+          name: Release ${{ env.FIX_RELEASE_TAG }}
           files: |
-            ${{ env.FIX_RELEASE_TAG }}.zip.*
-          body: |
-            系统版本：Win11 26H1 Build ${{ env.Build_VERSION }}
-            打包格式：标准ZIP分卷，单卷1900MB
-            后缀：.zip.001/.zip.002，全部下载同一目录打开001解压
+            *.zip
+            *.z01
+            *.z02
+            *.z*
