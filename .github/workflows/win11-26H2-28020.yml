@@ -1,0 +1,67 @@
+name: Windows11_26H2_amd64
+
+on: workflow_dispatch
+
+permissions:
+  contents: write
+
+env:
+  Build_VERSION: '28020.2207'
+  FILE_NAME: Windows11_26H2_amd64
+  FIX_RELEASE_TAG: Windows11_26H2_amd64
+
+jobs:
+  Build_UUP:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      # UUP生成ISO
+      - name: UUP dump build ISO
+        shell: cmd
+        run: |
+          cd %FILE_NAME%
+          dir
+          uup_download_windows.cmd
+
+       # CMD查看ISO目录
+      - name: List ISO Files
+        shell: cmd
+        run: |
+          cd %FILE_NAME%
+          dir *.iso
+          cd ..
+
+      # PS安装7zip不变
+      - name: Install 7-Zip via Powershell
+        shell: pwsh
+        run: |
+          choco install 7zip -y
+          echo "${env:ProgramFiles}\7-Zip" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+      # 关键：切CMD打包，%变量原生支持，路径不会乱转
+      - name: Split Compress ZIP(1.9G/part)
+        shell: cmd
+        run: 7z a -tzip -v1900M %FIX_RELEASE_TAG%.zip %FILE_NAME%\*.iso -mx=6
+
+      - name: Upload Split Zip Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ISO-Split-Zip-Pack
+          path: |
+            *.zip
+            *.z01
+            *.z02
+            *.z*
+
+      - name: Create Github Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ env.FIX_RELEASE_TAG }}
+          name: Release ${{ env.FIX_RELEASE_TAG }}
+          files: |
+            *.zip
+            *.z01
+            *.z02
+            *.z*
