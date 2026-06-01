@@ -1,18 +1,29 @@
 name: Windows11_26H1_amd64
 
-on: workflow_dispatch
+on:
+  # 1. 手动点击 Run workflow 触发
+  workflow_dispatch:
+  # 2. 【已关闭定时】注释后不再自动定时运行（前面jia加#）
+  # schedule:
+  #   - cron: '0 2 * * *'
+  # 3. 推送 yml/cmd 文件到 main 分支自动触发
+  push:
+    branches: [ main ]
+    paths:
+      - '**.yml'
 
 permissions:
   contents: write
 
 env:
-  Build_VERSION: '28000.2113'
+  Build_VERSION: '22621.6060'
   FILE_NAME: Windows11_26H1_amd64
   FIX_RELEASE_TAG: Windows11_26H1_amd64
+  ALI_TARGET_DIR: "/Windows_10_11_ISO/Windows11_26H1_amd64/" # 阿里云盘存放目录，按需修改
 
 jobs:
   Build_UUP:
-    runs-on: windows-latest
+    runs-on: windows-2022 # 锁定镜像规避windows-latest升级
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -25,7 +36,7 @@ jobs:
           dir
           uup_download_windows.cmd
 
-       # CMD查看ISO目录
+      # CMD查看ISO目录
       - name: List ISO Files
         shell: cmd
         run: |
@@ -33,35 +44,69 @@ jobs:
           dir *.iso
           cd ..
 
-      # PS安装7zip不变
+      # PS安装7zip
       - name: Install 7-Zip via Powershell
         shell: pwsh
         run: |
           choco install 7zip -y
           echo "${env:ProgramFiles}\7-Zip" | Out-File -FilePath $env:GITHUB_PATH -Append
 
-      # 关键修改：分卷包名自动带上 Build_VERSION 版本号
+      # 分卷压缩（cmd内%变量%正常生效）
       - name: Split Compress ZIP(1.9G/part)
         shell: cmd
         run: 7z a -tzip -v1900M %FIX_RELEASE_TAG%_%Build_VERSION%.zip %FILE_NAME%\*.iso -mx=6
 
+      # 上传制品到Actions（v5修复node警告）
       - name: Upload Split Zip Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ISO-Split-Zip-Pack
           path: |
-            *%Build_VERSION%.zip
-            *%Build_VERSION%.z01
-            *%Build_VERSION%.z02
-            *%Build_VERSION%.z*
+            ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip
+            ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.z01
+            ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.z02
+            ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.z*
 
+      # 发布Github Release
       - name: Create Github Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ env.FIX_RELEASE_TAG }}
           name: Release ${{ env.FIX_RELEASE_TAG }}
           files: |
-            *%Build_VERSION%.zip
-            *%Build_VERSION%.z01
-            *%Build_VERSION%.z02
-            *%Build_VERSION%.z*
+            ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip
+            ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.z01
+            ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.z02
+            ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.z*
+
+      # ==========新增：Rclone上传阿里云盘指定目录==========
+      - name: Install Rclone
+        shell: pwsh
+        run: |
+          choco install rclone -y
+
+      - name: Rclone配置阿里云盘WebDAV
+        shell: pwsh
+        run: |
+          mkdir -Force $env:USERPROFILE\.config\rclone
+          @"
+[aliyun]
+type = webdav
+url = http://localhost:8080/dav
+vendor = other
+user = ${{ secrets.ALI_WEBDAV_USER }}
+pass = ${{ secrets.ALI_WEBDAV_PWD }}
+"@ | Out-File $env:USERPROFILE\.config\rclone\rclone.conf -Encoding utf8
+
+      - name: 启动阿里云盘WebDAV服务
+        shell: pwsh
+        run: |
+          pip install aliyundrive-webdav
+          Start-Job -ScriptBlock {aliyundrive-webdav --refresh-token ${{ secrets.ALI_REFRESH_TOKEN }} --host 127.0.0.1 --port 8080 -U ${{ secrets.ALI_WEBDAV_USER }} -W ${{ secrets.ALI_WEBDAV_PWD }} --no-trash}
+          Start-Sleep -Seconds 8 # 等待webdav启动完成
+
+      - name: 自动创建云盘目录+上传分卷压缩包
+        shell: pwsh
+        run: |
+          rclone mkdir aliyun:${{ env.ALI_TARGET_DIR }}
+          rclone copy . aliyun:${{ env.ALI_TARGET_DIR }} --include "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.*" --progress
