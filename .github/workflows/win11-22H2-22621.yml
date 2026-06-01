@@ -1,11 +1,13 @@
 name: Windows11_22H2_amd64
 
 on:
+  # 手动按钮运行
   workflow_dispatch:
+  # 仅当main分支提交yml后缀文件时自动执行
   push:
     branches: [ main ]
     paths:
-      - '**.yml'
+      - '.github/workflows/*.yml' # 限定只修改工作流yml才触发，其他文件改动不跑任务
 
 permissions:
   contents: write
