@@ -9,4 +9,3 @@ on:
     branches: [ main ]
     paths:
       - '**.yml'
-      - '**.cmd'
