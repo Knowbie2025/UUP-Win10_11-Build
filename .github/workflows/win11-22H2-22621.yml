@@ -25,7 +25,7 @@ jobs:
           dir
           uup_download_windows.cmd
 
-       # CMD查看ISO目录
+      # CMD查看ISO目录
       - name: List ISO Files
         shell: cmd
         run: |
@@ -33,35 +33,37 @@ jobs:
           dir *.iso
           cd ..
 
-      # PS安装7zip不变
+      # PS安装7zip
       - name: Install 7-Zip via Powershell
         shell: pwsh
         run: |
           choco install 7zip -y
           echo "${env:ProgramFiles}\7-Zip" | Out-File -FilePath $env:GITHUB_PATH -Append
 
-      # 关键修改：分卷包名自动带上 Build_VERSION 版本号
+      # 分卷压缩（cmd内%变量%可用，无需改动）
       - name: Split Compress ZIP(1.9G/part)
         shell: cmd
         run: 7z a -tzip -v1900M %FIX_RELEASE_TAG%_%Build_VERSION%.zip %FILE_NAME%\*.iso -mx=6
 
+      # 修复1：upload-artifact升级v5 + 改用 ${{ env.xxx }} 变量语法
       - name: Upload Split Zip Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ISO-Split-Zip-Pack
           path: |
-            *%Build_VERSION%.zip
-            *%Build_VERSION%.z01
-            *%Build_VERSION%.z02
-            *%Build_VERSION%.z*
+            ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip
+            ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.z01
+            ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.z02
+            ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.z*
 
+      # 修复2：release上传文件同样替换变量语法
       - name: Create Github Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ env.FIX_RELEASE_TAG }}
           name: Release ${{ env.FIX_RELEASE_TAG }}
           files: |
-            *%Build_VERSION%.zip
-            *%Build_VERSION%.z01
-            *%Build_VERSION%.z02
-            *%Build_VERSION%.z*
+            ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip
+            ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.z01
+            ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.z02
+            ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.z*
