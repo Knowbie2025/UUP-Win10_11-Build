@@ -23,6 +23,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+      # UUP打包ISO
       - name: UUP dump build ISO
         shell: cmd
         run: |
@@ -37,18 +38,19 @@ jobs:
           dir *.iso
           cd ..
 
+      # 安装7zip
       - name: Install 7-Zip via Powershell
         shell: pwsh
         run: |
           choco install 7zip -y
           echo "${env:ProgramFiles}\7-Zip" | Out-File -FilePath $env:GITHUB_PATH -Append
 
-      # 7z 分卷：自动生成 .zip.001 .zip.002 ...
+      # 1.9G分卷ZIP，生成xxx.zip.001/002格式
       - name: Split Compress ZIP(1.9G/part)
         shell: cmd
         run: 7z a -tzip -v1900M %FIX_RELEASE_TAG%_%Build_VERSION%.zip %FILE_NAME%\*.iso -mx=6
 
-      # 上传制品（匹配所有分卷）
+      # 上传制品
       - name: Upload Split Zip Artifact
         uses: actions/upload-artifact@v5
         with:
@@ -56,21 +58,22 @@ jobs:
           path: |
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
 
-      # 发布 Release（文件名带版本号，匹配所有分卷）
+      # Github发布Release
       - name: Create Github Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ env.FIX_RELEASE_TAG }}
+          tag_name: ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}
           name: Release ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}
           files: |
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
 
-      # 上传阿里云盘
+      # 安装Rclone
       - name: Install Rclone
         shell: pwsh
         run: |
           choco install rclone -y
 
+      # Rclone阿里WebDAV配置（PS多行引号标准写法，无语法报错）
       - name: Rclone配置阿里云盘WebDAV
         shell: pwsh
         run: |
@@ -84,15 +87,18 @@ user = ${{ secrets.ALI_WEBDAV_USER }}
 pass = ${{ secrets.ALI_WEBDAV_PWD }}
 "@ | Out-File $env:USERPROFILE\.config\rclone\rclone.conf -Encoding utf8
 
+      # 安装py+启动webdav，等待10秒就绪
       - name: 启动阿里云盘WebDAV服务
         shell: pwsh
         run: |
+          python -m pip install --upgrade pip
           pip install aliyundrive-webdav
           Start-Job -ScriptBlock {aliyundrive-webdav --refresh-token ${{ secrets.ALI_REFRESH_TOKEN }} --host 127.0.0.1 --port 8080 -U ${{ secrets.ALI_WEBDAV_USER }} -W ${{ secrets.ALI_WEBDAV_PWD }} --no-trash}
           Start-Sleep -Seconds 10
 
+      # 阿里云盘创建目录+上传分卷
       - name: 自动创建云盘目录+上传分卷压缩包
         shell: pwsh
         run: |
-          rclone mkdir aliyun:${{ env.ALI_TARGET_DIR }}
+          rclone mkdir aliyun:${{ env.ALI_TARGET_DIR }} --ignore-existing
           rclone copy . aliyun:${{ env.ALI_TARGET_DIR }} --include "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*" --progress
