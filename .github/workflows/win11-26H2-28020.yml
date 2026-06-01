@@ -85,11 +85,11 @@ jobs:
         run: |
           choco install rclone -y
 
-      - name: Rclone配置阿里云盘WebDAV
-        shell: pwsh
-        run: |
-          mkdir -Force $env:USERPROFILE\.config\rclone
-          @"
+- name: Rclone配置阿里云盘WebDAV
+  shell: pwsh
+  run: |
+    mkdir -Force $env:USERPROFILE\.config\rclone
+    @"
 [aliyun]
 type = webdav
 url = http://localhost:8080/dav
