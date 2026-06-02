@@ -1,16 +1,12 @@
 name: Windows11_26H1_amd64
 
 on:
-  # 1. 手动点击 Run workflow 触发
   workflow_dispatch:
-  # 2. 【已关闭定时】注释后不再自动定时运行（前面jia加#）
-  # schedule:
-  #   - cron: '0 2 * * *'
-  # 3. 推送 yml/cmd 文件到 main 分支自动触发
   push:
     branches: [ main ]
     paths:
-      - '**.yml'
+      # 仅匹配文件名含26H1的yml，修改其它yml不会触发本任务
+      - '.github/workflows/*26H1*.yml'
 
 permissions:
   contents: write
