@@ -5,7 +5,8 @@ on:
   push:
     branches: [ main ]
     paths:
-      - '**.yml'
+      # 仅匹配文件名含25H2的yml，修改其它yml不会触发本任务
+      - '.github/workflows/*25H2*.yml'
 
 permissions:
   contents: write
