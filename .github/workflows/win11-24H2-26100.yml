@@ -1,6 +1,11 @@
 name: Windows11_24H2_amd64
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - '**.yml'
 
 permissions:
   contents: write
@@ -9,15 +14,17 @@ env:
   Build_VERSION: '26100.8524'
   FILE_NAME: Windows11_24H2_amd64
   FIX_RELEASE_TAG: Windows11_24H2_amd64
+  # 阿里云盘上传目标目录
+  ALI_YUN_DRIVE_UPLOAD_PATH: /Windows_10_11_ISO/Windows11_25H2_amd64/
 
 jobs:
   Build_UUP:
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      # UUP生成ISO
+      # UUP打包ISO
       - name: UUP dump build ISO
         shell: cmd
         run: |
@@ -25,7 +32,6 @@ jobs:
           dir
           uup_download_windows.cmd
 
-       # CMD查看ISO目录
       - name: List ISO Files
         shell: cmd
         run: |
@@ -33,35 +39,49 @@ jobs:
           dir *.iso
           cd ..
 
-      # PS安装7zip不变
+      # 安装7zip
       - name: Install 7-Zip via Powershell
         shell: pwsh
         run: |
           choco install 7zip -y
           echo "${env:ProgramFiles}\7-Zip" | Out-File -FilePath $env:GITHUB_PATH -Append
 
-      # 关键：切CMD打包，%变量原生支持，路径不会乱转
+      # 1.9G分卷ZIP
       - name: Split Compress ZIP(1.9G/part)
         shell: cmd
-        run: 7z a -tzip -v1900M %FIX_RELEASE_TAG%.zip %FILE_NAME%\*.iso -mx=6
+        run: 7z a -tzip -v1900M %FIX_RELEASE_TAG%_%Build_VERSION%.zip %FILE_NAME%\*.iso -mx=6
 
+      # 上传制品
       - name: Upload Split Zip Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ISO-Split-Zip-Pack
           path: |
-            *.zip
-            *.z01
-            *.z02
-            *.z*
+            ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
 
+      # Github发布Release
       - name: Create Github Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ env.FIX_RELEASE_TAG }}
-          name: Release ${{ env.FIX_RELEASE_TAG }}
+          tag_name: ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}
+          name: Release ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}
           files: |
-            *.zip
-            *.z01
-            *.z02
-            *.z*
+            ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
+
+      # ===================== 新增：上传到阿里云盘 =====================
+      - name: Install aliyunpan-cli
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/liupan18270/aliyunpan/releases/download/v0.3.2/aliyunpan_v0.3.2_windows_amd64.zip" -OutFile "aliyunpan.zip"
+          7z x aliyunpan.zip -oaliyunpan
+          echo "$pwd\aliyunpan" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+      - name: Login to Aliyun Drive
+        shell: pwsh
+        run: |
+          aliyunpan login -RefreshToken "${{ secrets.ALI_REFRESH_TOKEN }}"
+
+      - name: Upload files to Aliyun Drive
+        shell: pwsh
+        run: |
+          aliyunpan u "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*" "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
