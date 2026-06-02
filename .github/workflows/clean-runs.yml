@@ -1,5 +1,5 @@
 name: Auto Clean Failed Actions Runs
-# 定时每天凌晨2点自动执行，也支持手动触发
+# 定时每天凌晨3点自动执行，也支持手动触发
 on:
   schedule:
     - cron: '0 3 * * *'
@@ -27,7 +27,7 @@ jobs:
           gh run list \
             --status failure,cancelled \
             --all \
-            --limit 200 \
+            --limit 1000 \
             --json databaseId \
             | jq -r '.[].databaseId' \
             | xargs -I {} gh run delete {}
