@@ -2,23 +2,35 @@ name: Clean Failed & Cancelled Runs
 on:
   workflow_dispatch:
   schedule:
-    # 北京时间凌晨3点 = UTC前一日19点
+    # 北京时间凌晨3点=UTC前一天19点
     - cron: '0 19 * * *'
+
 permissions:
   actions: write
   contents: read
+
 jobs:
   clean:
     runs-on: ubuntu-latest
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # 改用PAT密钥，不是默认GITHUB_TOKEN
+      GH_TOKEN: ${{ secrets.GH_PAT }}
     steps:
-      - name: Install gh + jq
+      - name: Install gh & jq
+        run: sudo apt update && sudo apt install gh jq -y
+
+      - name: Batch delete failed/cancelled/timed_out runs
         run: |
-          sudo apt update && sudo apt install gh jq -y
-      - name: Clean failed/cancelled/timed_out runs
-        run: |
-          # 去掉--all，改用不加all，limit拉满500条全仓库失败任务
-          gh run list --status failure,cancelled,timed_out --limit 500 --json databaseId \
-          | jq -r '.[].databaseId' | xargs -r -I{} gh run delete {}
-          echo "✅ 异常流水线清理完毕"
+          # 分页循环抓取全仓库所有异常流水线（突破单workflow限制）
+          page=1
+          while true; do
+            # --limit 100 单页上限，循环翻页
+            run_ids=$(gh run list --status failure,cancelled,timed_out --limit 100 --page $page --json databaseId | jq -r '.[].databaseId')
+            if [ -z "$run_ids" ];then
+              echo "✅ 没有剩余待删除任务，清理结束"
+              break
+            fi
+            echo "$run_ids" | xargs -I{} gh run delete {}
+            echo "✅ 第$page页清理完成"
+            page=$((page+1))
+          done
