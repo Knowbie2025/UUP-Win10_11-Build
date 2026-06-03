@@ -1,33 +1,26 @@
-name: Auto Clean Failed Actions Runs
-# 定时每天凌晨3点自动执行，也支持手动触发
+name: Clean Failed & Cancelled Runs
 on:
+  workflow_dispatch:
   schedule:
-    - cron: '0 3 * * *'
-  workflow_dispatch: # 支持页面手动一键运行清理
+    # UTC13点 = 北京时间21点，每日自动执行
+    - cron: '0 13 * * *'
+
+permissions:
+  actions: write
+  contents: read
 
 jobs:
-  clean-failed-runs:
+  clean:
     runs-on: ubuntu-latest
-    permissions:
-      actions: write # 必须权限：操作删除Actions
-      contents: read
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Install GitHub CLI
-        run: sudo apt update && sudo apt install gh jq -y
-
-      - name: Auth gh cli with GITHUB_TOKEN
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh auth login --with-token <<< $GH_TOKEN
+          sudo apt update && sudo apt install gh -y
 
-      - name: Delete all Failure / Cancelled runs
+      - name: Delete failed/cancelled/timed_out runs
         run: |
-          # 批量删除状态为failure(失败红叉)、cancelled(手动取消)的所有Workflow Run
-          gh run list \
-            --status failure,cancelled \
-            --all \
-            --limit 1000 \
-            --json databaseId \
-            | jq -r '.[].databaseId' \
-            | xargs -I {} gh run delete {}
+          gh run list --status failure,cancelled,timed_out --all --limit 500 --json databaseId \
+            | jq -r '.[].databaseId' | xargs -I{} gh run delete {}
+          echo "✅ 异常流水线清理完毕"
