@@ -5,7 +5,7 @@ on:
   push:
     branches: [ main ]
     paths:
-      # 仅匹配文件名含26H2的yml，修改其它yml不会触发本任务
+      # 仅匹配文件名含26H2的yml，修改其它yml不会触发本任务。
       - '.github/workflows/win11-26H2-28020.yml'
 
 permissions:
@@ -15,14 +15,15 @@ env:
   Build_VERSION: '28020.2207'
   FILE_NAME: Windows11_26H2_amd64
   FIX_RELEASE_TAG: Windows11_26H2_amd64
-  ALI_TARGET_DIR: "/Windows_10_11_ISO/Windows11_26H2_amd64/"
+  # 阿里云盘上传目标目录
+  ALI_YUN_DRIVE_UPLOAD_PATH: /Windows_10_11_ISO/Windows11_26H2_amd64/
 
 jobs:
   Build_UUP:
     runs-on: windows-2022
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       # UUP打包ISO
       - name: UUP dump build ISO
@@ -46,60 +47,43 @@ jobs:
           choco install 7zip -y
           echo "${env:ProgramFiles}\7-Zip" | Out-File -FilePath $env:GITHUB_PATH -Append
 
-      # 1.9G分卷ZIP，生成xxx.zip.001/002格式
+      # 1.9G分卷ZIP
       - name: Split Compress ZIP(1.9G/part)
         shell: cmd
         run: 7z a -tzip -v1900M %FIX_RELEASE_TAG%_%Build_VERSION%.zip %FILE_NAME%\*.iso -mx=6
 
-      # 上传制品
+      # 上传制品【v5→v6】
       - name: Upload Split Zip Artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: ISO-Split-Zip-Pack
           path: |
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
 
-      # Github发布Release
+      # Github发布Release（已经是v2，原生Node24不用改）
       - name: Create Github Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}
           name: Release ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}
           files: |
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
 
-      # 安装Rclone
-      - name: Install Rclone
+      # ===================== 替换aliyunpan下载地址为tickstep原版v0.3.9 =====================
+      - name: Install aliyunpan-cli
         shell: pwsh
         run: |
-          choco install rclone -y
+          $url = "https://github.com/tickstep/aliyunpan/releases/tag/v0.3.9/aliyunpan-v0.3.9-windows-x64.zip"
+          Invoke-WebRequest -Uri $url -OutFile aliyunpan.zip
+          7z x aliyunpan.zip -oaliyunpan
+          echo "$pwd\aliyunpan" | Out-File -FilePath $env:GITHUB_PATH -Append
 
-      # Rclone阿里WebDAV配置（PS多行引号标准写法，无语法报错）
-      - name: Rclone配置阿里云盘WebDAV
+      - name: Login to Aliyun Drive
         shell: pwsh
         run: |
-          mkdir -Force $env:USERPROFILE\.config\rclone
-          @"
-[aliyun]
-type = webdav
-url = http://localhost:8080/dav
-vendor = other
-user = ${{ secrets.ALI_WEBDAV_USER }}
-pass = ${{ secrets.ALI_WEBDAV_PWD }}
-"@ | Out-File $env:USERPROFILE\.config\rclone\rclone.conf -Encoding utf8
+          aliyunpan login -RefreshToken "${{ secrets.ALI_REFRESH_TOKEN }}"
 
-      # 安装py+启动webdav，等待10秒就绪
-      - name: 启动阿里云盘WebDAV服务
+      - name: Upload files to Aliyun Drive
         shell: pwsh
         run: |
-          python -m pip install --upgrade pip
-          pip install aliyundrive-webdav
-          Start-Job -ScriptBlock {aliyundrive-webdav --refresh-token ${{ secrets.ALI_REFRESH_TOKEN }} --host 127.0.0.1 --port 8080 -U ${{ secrets.ALI_WEBDAV_USER }} -W ${{ secrets.ALI_WEBDAV_PWD }} --no-trash}
-          Start-Sleep -Seconds 10
-
-      # 阿里云盘创建目录+上传分卷
-      - name: 自动创建云盘目录+上传分卷压缩包
-        shell: pwsh
-        run: |
-          rclone mkdir aliyun:${{ env.ALI_TARGET_DIR }} --ignore-existing
-          rclone copy . aliyun:${{ env.ALI_TARGET_DIR }} --include "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*" --progress
+          aliyunpan u "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*" "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
