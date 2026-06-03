@@ -6,7 +6,7 @@ on:
     branches: [ main ]
     paths:
       # 仅匹配文件名含26H1的yml，修改其它yml不会触发本任务
-      - '.github/workflows/*26H1*.yml'
+      - '.github/workflows/win11-26H1-28000.yml'
 
 permissions:
   contents: write
