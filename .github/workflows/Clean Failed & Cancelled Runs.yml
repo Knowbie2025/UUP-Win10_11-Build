@@ -1,39 +1,22 @@
-name: Clean Failed & Cancelled Runs
-on:
-  workflow_dispatch:
-  schedule:
-    # 北京时间凌晨3点 = UTC19点
-    - cron: '0 19 * * *'
-
-permissions:
-  actions: write
-  contents: read
-
-jobs:
-  clean:
-    runs-on: ubuntu-latest
-    env:
-      # 固定填写仓库密钥GH_PAT，不要用默认GITHUB_TOKEN
-      GH_TOKEN: ${{ secrets.GH_PAT }}
-    steps:
-      - name: Install gh & jq
-        run: sudo apt update && sudo apt install gh jq -y
-
       - name: Clean all invalid runs
         run: |
           page=1
           total=0
+          status_arr=("cancelled" "failure" "timed_out")
           while true;do
-            # 拉取失败、取消、超时三类任务
-            data=$(gh run list --status failure,cancelled,timed_out --limit 100 --page $page --json databaseId)
-            ids=$(echo $data | jq -r '.[].databaseId')
-            if [ -z "$ids" ];then
-              echo "✅ 遍历完毕，本次共删除$total条记录"
-              break
-            fi
-            echo "$ids" | xargs -I{} gh run delete {}
-            cnt=$(echo "$ids" | wc -l)
-            total=$((total+cnt))
-            echo "✅ 第$page页，清理$cnt条，累计:$total"
-            page=$((page+1))
+              all_ids=""
+              for s in "${status_arr[@]}";do
+                  ids=$(gh run list --status "$s" --limit 100 --page $page --json databaseId | jq -r '.[].databaseId')
+                  all_ids+="$ids"$'\n'
+              done
+              clean_ids=$(echo "$all_ids" | sort -u | sed '/^$/d')
+              if [ -z "$clean_ids" ];then
+                  echo "✅ 遍历完毕，本次共删除$total条记录"
+                  break
+              fi
+              echo "$clean_ids" | xargs -I{} gh run delete {}
+              cnt=$(echo "$clean_ids" | wc -l)
+              total=$((total+cnt))
+              echo "✅ 第$page页，清理$cnt条，累计:$total"
+              page=$((page+1))
           done
