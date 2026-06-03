@@ -2,8 +2,8 @@ name: Clean Failed & Cancelled Runs
 on:
   workflow_dispatch:
   schedule:
-    # UTC13点 = 北京时间21点，每日自动执行
-    - cron: '0 13 * * *'
+    # UTC19点 = 北京时间3点，每日自动执行
+    - cron: '0 19 * * *'
 
 permissions:
   actions: write
