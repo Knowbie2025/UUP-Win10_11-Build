@@ -1,3 +1,20 @@
+name: Clean Failed & Cancelled Runs
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 19 * * *'
+permissions:
+  actions: write
+  contents: read
+jobs:
+  clean:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GH_PAT }}
+    steps:
+      - name: Install gh & jq
+        run: sudo apt update && sudo apt install gh jq -y
+
       - name: Clean all invalid runs
         run: |
           page=1
