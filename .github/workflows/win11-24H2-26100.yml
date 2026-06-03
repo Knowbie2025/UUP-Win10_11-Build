@@ -5,7 +5,7 @@ on:
   push:
     branches: [ main ]
     paths:
-      # 仅匹配文件名含24H2的yml，修改其它yml不会触发本任务
+      # 仅匹配文件名含24H2的yml，修改其它yml不会触发本任务。
       - '.github/workflows/*24H2*.yml'
 
 permissions:
@@ -69,20 +69,27 @@ jobs:
           files: |
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
 
-      # ===================== 新增：上传到阿里云盘 =====================
-      - name: Install aliyunpan-cli
+      # ===================== 替换为 chyroc/aliyundrive-cli v0.14.5 =====================
+      - name: Install aliyundrive-cli
         shell: pwsh
         run: |
-          Invoke-WebRequest -Uri "https://github.com/liupan18270/aliyunpan/releases/download/v0.3.2/aliyunpan_v0.3.2_windows_amd64.zip" -OutFile "aliyunpan.zip"
-          7z x aliyunpan.zip -oaliyunpan
-          echo "$pwd\aliyunpan" | Out-File -FilePath $env:GITHUB_PATH -Append
+          $ver="v0.14.5"
+          $url="https://github.com/chyroc/aliyundrive-cli/releases/download/$ver/aliyundrive-cli_Windows_x86_64.zip"
+          Invoke-WebRequest -Uri $url -OutFile aliyundrive.zip
+          7z x aliyundrive.zip -oaliyundrive
+          echo "$pwd\aliyundrive" | Out-File -FilePath $env:GITHUB_PATH -Append
 
-      - name: Login to Aliyun Drive
+      # 登录：该cli用RefreshToken环境变量，Secrets依旧填ALI_REFRESH_TOKEN
+      - name: Login AliyunDrive
         shell: pwsh
+        env:
+          ALIYUNDRIVE_REFRESH_TOKEN: ${{ secrets.ALI_REFRESH_TOKEN }}
         run: |
-          aliyunpan login -RefreshToken "${{ secrets.ALI_REFRESH_TOKEN }}"
+          # 自动读取环境变量鉴权，无需手动login命令
+          aliyundrive whoami
 
-      - name: Upload files to Aliyun Drive
+      # 批量上传分卷压缩包
+      - name: Upload to AliyunDrive
         shell: pwsh
         run: |
-          aliyunpan u "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*" "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+          aliyundrive upload --dst ${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }} ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
