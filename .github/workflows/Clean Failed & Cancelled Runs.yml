@@ -2,25 +2,23 @@ name: Clean Failed & Cancelled Runs
 on:
   workflow_dispatch:
   schedule:
-    # UTC19点 = 北京时间3点，每日自动执行
+    # 北京时间凌晨3点 = UTC前一日19点
     - cron: '0 19 * * *'
-
 permissions:
   actions: write
   contents: read
-
 jobs:
   clean:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - name: Install GitHub CLI
+      - name: Install gh + jq
         run: |
-          sudo apt update && sudo apt install gh -y
-
-      - name: Delete failed/cancelled/timed_out runs
+          sudo apt update && sudo apt install gh jq -y
+      - name: Clean failed/cancelled/timed_out runs
         run: |
-          gh run list --status failure,cancelled,timed_out --all --limit 500 --json databaseId \
-            | jq -r '.[].databaseId' | xargs -I{} gh run delete {}
+          # 去掉--all，改用不加all，limit拉满500条全仓库失败任务
+          gh run list --status failure,cancelled,timed_out --limit 500 --json databaseId \
+          | jq -r '.[].databaseId' | xargs -r -I{} gh run delete {}
           echo "✅ 异常流水线清理完毕"
