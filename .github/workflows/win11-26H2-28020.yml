@@ -5,7 +5,7 @@ on:
   push:
     branches: [ main ]
     paths:
-      # 仅匹配文件名含26H2的yml，修改其它yml不会触发本任务。
+      # 仅匹配文件名含26H2的yml，修改其它yml不会触发本任务
       - '.github/workflows/win11-26H2-28020.yml'
 
 permissions:
