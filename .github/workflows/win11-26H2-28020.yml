@@ -25,6 +25,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      # =====新增：自动获取aliyunpan最新版本tag=====
+      - name: Get latest aliyunpan release tag
+        id: get_ali_ver
+        shell: pwsh
+        run: |
+          # 请求api拿最新release tag
+          $res = Invoke-RestMethod -Uri "https://api.github.com/repos/tickstep/aliyunpan/releases/latest"
+          $latest_tag = $res.tag_name
+          echo "latest_ver=$latest_tag" >> $env:GITHUB_ENV
+
       # UUP打包ISO
       - name: UUP dump build ISO
         shell: cmd
@@ -69,11 +79,13 @@ jobs:
           files: |
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
 
-      # ===================== 替换aliyunpan下载地址为tickstep原版v0.3.9 =====================
-      - name: Install aliyunpan-cli
+      # =================自动拼接最新版本下载链接=================
+      - name: Install aliyunpan-cli(自动最新版)
         shell: pwsh
         run: |
-          $url = "https://github.com/tickstep/aliyunpan/releases/tag/v0.3.9/aliyunpan-v0.3.9-windows-x64.zip"
+          $ver = "${{ env.latest_ver }}"
+          $url = "https://github.com/tickstep/aliyunpan/releases/download/$ver/aliyunpan-$ver-windows-x64.zip"
+          Write-Host "Download aliyunpan: $url"
           Invoke-WebRequest -Uri $url -OutFile aliyunpan.zip
           7z x aliyunpan.zip -oaliyunpan
           echo "$pwd\aliyunpan" | Out-File -FilePath $env:GITHUB_PATH -Append
