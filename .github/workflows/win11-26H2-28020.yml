@@ -70,7 +70,7 @@ jobs:
           path: |
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
 
-      # Github发布Release（已经是v2，原生Node24不用改）
+      # Github发布Release（关闭自动源码包，实现Assets默认展开）
       - name: Create Github Release
         uses: softprops/action-gh-release@v2
         with:
@@ -78,6 +78,7 @@ jobs:
           name: Release ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}
           files: |
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
+          generate_release_notes: false # 关闭自动生成Source code压缩包
 
       # =================自动拼接最新版本下载链接=================
       - name: Install aliyunpan-cli(自动最新版)
