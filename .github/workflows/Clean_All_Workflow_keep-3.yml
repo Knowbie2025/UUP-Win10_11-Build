@@ -1,6 +1,9 @@
 name: Clean_All_Workflow
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '0 19 * * *'  # UTC 19:00 = 北京时间 03:00
+
 jobs:
   clean:
     runs-on: ubuntu-latest
@@ -11,7 +14,7 @@ jobs:
       - name: All workflows keep 3 runs
         uses: Mattraks/delete-workflow-runs@v2
         with:
-          token: ${{ github.TOKEN }}
+          token: ${{ github.token }}
           repository: ${{ github.repository }}
           retain_days: 0
-          keep_minimum_runs: 5
+          keep_minimum_runs: 3
