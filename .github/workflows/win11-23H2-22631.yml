@@ -79,6 +79,7 @@ jobs:
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
           generate_release_notes: false
 
+      # ==========【重点修改：修正aliyunpan解压+PATH配置】==========
       # 自动下载最新aliyunpan，ghfast.top加速（替代失效ghproxy）
       - name: Install aliyunpan-cli(动态最新版)
         shell: pwsh
@@ -88,8 +89,16 @@ jobs:
           $downUrl = "https://ghfast.top/$rawUrl"
           Write-Host "Download aliyunpan -> $downUrl"
           Invoke-WebRequest -Uri $downUrl -OutFile aliyunpan.zip -UseBasicParsing -TimeoutSec 120
+          # 解压压缩包
           7z x aliyunpan.zip -oaliyunpan >$null
-          "$PWD\aliyunpan" | Out-File -FilePath $env:GITHUB_PATH -Append
+          # 查找exe所在真实目录
+          $aliExePath = Get-ChildItem -Path ./aliyunpan -Recurse -Filter aliyunpan.exe | Select-Object -First 1
+          $aliBinDir = Split-Path $aliExePath.FullName -Parent
+          # 把exe所在真实目录写入PATH环境变量
+          echo "$aliBinDir" | Out-File -FilePath $env:GITHUB_PATH -Append
+          Write-Host "aliyunpan bin path: $aliBinDir"
+          # 验证命令是否可用
+          aliyunpan -v
 
       - name: Login to Aliyun Drive
         shell: pwsh
