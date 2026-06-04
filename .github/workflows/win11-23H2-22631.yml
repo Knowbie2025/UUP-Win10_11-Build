@@ -25,6 +25,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      # 自动获取aliyunpan最新Release标签，写入环境变量latest_ver
+      - name: Get latest aliyunpan version
+        id: get_ali_ver
+        shell: pwsh
+        run: |
+          $res = Invoke-RestMethod -Uri "https://api.github.com/repos/tickstep/aliyunpan/releases/latest"
+          $tag = $res.tag_name
+          echo "latest_ver=$tag" >> $env:GITHUB_ENV
+
       # UUP打包ISO
       - name: UUP dump build ISO
         shell: cmd
@@ -60,7 +69,7 @@ jobs:
           path: |
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
 
-      # Github发布Release（已经是v2，原生Node24不用改）
+      # Github发布Release（关闭自动源码包）
       - name: Create Github Release
         uses: softprops/action-gh-release@v2
         with:
@@ -68,15 +77,19 @@ jobs:
           name: Release ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}
           files: |
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
+          generate_release_notes: false
 
-      # 【已修复】aliyunpan-cli下载，ghproxy加速Github官方源，解决404报错
-      - name: Install aliyunpan-cli
+      # 自动下载最新aliyunpan，ghfast.top加速（替代失效ghproxy）
+      - name: Install aliyunpan-cli(动态最新版)
         shell: pwsh
         run: |
-          $url = "https://mirror.ghproxy.com/https://github.com/tickstep/aliyunpan/releases/download/v0.3.9/aliyunpan-v0.3.9-windows-amd64.zip"
-          Invoke-WebRequest -Uri $url -OutFile aliyunpan.zip
-          7z x aliyunpan.zip -oaliyunpan
-          echo "$pwd\aliyunpan" | Out-File -FilePath $env:GITHUB_PATH -Append
+          $ver = $env:latest_ver
+          $rawUrl = "https://github.com/tickstep/aliyunpan/releases/download/$ver/aliyunpan-$ver-windows-x64.zip"
+          $downUrl = "https://ghfast.top/$rawUrl"
+          Write-Host "Download aliyunpan -> $downUrl"
+          Invoke-WebRequest -Uri $downUrl -OutFile aliyunpan.zip -UseBasicParsing -TimeoutSec 120
+          7z x aliyunpan.zip -oaliyunpan >$null
+          "$PWD\aliyunpan" | Out-File -FilePath $env:GITHUB_PATH -Append
 
       - name: Login to Aliyun Drive
         shell: pwsh
