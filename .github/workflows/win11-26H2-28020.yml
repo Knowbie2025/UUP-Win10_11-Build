@@ -5,7 +5,6 @@ on:
   push:
     branches: [ main ]
     paths:
-      # 仅匹配文件名含26H2的yml，修改其它yml不会触发本任务。
       - '.github/workflows/win11-26H2-28020.yml'
 
 permissions:
@@ -15,7 +14,6 @@ env:
   Build_VERSION: '28020.2207'
   FILE_NAME: Windows11_26H2_amd64
   FIX_RELEASE_TAG: Windows11_26H2_amd64
-  # 阿里云盘上传目标目录
   ALI_YUN_DRIVE_UPLOAD_PATH: /Windows_10_11_ISO/Windows11_26H2_amd64/
 
 jobs:
@@ -25,17 +23,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      # =====新增：自动获取aliyunpan最新版本tag=====
+      # ===== 自动获取 aliyunpan 最新版本号 =====
       - name: Get latest aliyunpan release tag
         id: get_ali_ver
         shell: pwsh
         run: |
-          # 请求api拿最新release tag
           $res = Invoke-RestMethod -Uri "https://api.github.com/repos/tickstep/aliyunpan/releases/latest"
           $latest_tag = $res.tag_name
           echo "latest_ver=$latest_tag" >> $env:GITHUB_ENV
 
-      # UUP打包ISO
+      # UUP 打包 ISO
       - name: UUP dump build ISO
         shell: cmd
         run: |
@@ -50,19 +47,19 @@ jobs:
           dir *.iso
           cd ..
 
-      # 安装7zip
+      # 安装 7zip
       - name: Install 7-Zip via Powershell
         shell: pwsh
         run: |
           choco install 7zip -y
           echo "${env:ProgramFiles}\7-Zip" | Out-File -FilePath $env:GITHUB_PATH -Append
 
-      # 1.9G分卷ZIP
+      # 分卷压缩
       - name: Split Compress ZIP(1.9G/part)
         shell: cmd
         run: 7z a -tzip -v1900M %FIX_RELEASE_TAG%_%Build_VERSION%.zip %FILE_NAME%\*.iso -mx=6
 
-      # 上传制品【v5→v6】
+      # 上传制品
       - name: Upload Split Zip Artifact
         uses: actions/upload-artifact@v6
         with:
@@ -70,26 +67,27 @@ jobs:
           path: |
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
 
-      # Github发布Release（关闭自动源码包，实现Assets默认展开）
+      # 发布 Release
       - name: Create Github Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/gh-release@v2
         with:
           tag_name: ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}
           name: Release ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}
           files: |
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
-          generate_release_notes: false # 关闭自动生成Source code压缩包
+          generate_release_notes: false
 
-      # =================自动拼接最新版本下载链接=================
+      # ================= 自动下载最新版 aliyunpan =================
       - name: Install aliyunpan-cli(自动最新版)
         shell: pwsh
         run: |
-          $ver = "${{ env.latest_ver }}"
-          $url = "https://github.com/tickstep/aliyunpan/releases/download/$ver/aliyunpan-$ver-windows-x64.zip"
+          $ver = $env:latest_ver
+          # 加国内加速，必加！否则下载失败
+          $url = "https://ghfast.top/https://github.com/tickstep/aliyunpan/releases/download/$ver/aliyunpan-$ver-windows-x64.zip"
           Write-Host "Download aliyunpan: $url"
-          Invoke-WebRequest -Uri $url -OutFile aliyunpan.zip
+          Invoke-WebRequest -Uri $url -OutFile aliyunpan.zip -UseBasicParsing -TimeoutSec 120
           7z x aliyunpan.zip -oaliyunpan
-          echo "$pwd\aliyunpan" | Out-File -FilePath $env:GITHUB_PATH -Append
+          "$PWD\aliyunpan" | Out-File -FilePath $env:GITHUB_PATH -Append
 
       - name: Login to Aliyun Drive
         shell: pwsh
