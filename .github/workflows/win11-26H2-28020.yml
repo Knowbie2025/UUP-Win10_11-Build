@@ -54,7 +54,7 @@ jobs:
           choco install 7zip -y
           echo "${env:ProgramFiles}\7-Zip" | Out-File -FilePath $env:GITHUB_PATH -Append
 
-      # 分卷压缩
+      # 分卷压缩 1900M每卷
       - name: Split Compress ZIP(1.9G/part)
         shell: cmd
         run: 7z a -tzip -v1900M %FIX_RELEASE_TAG%_%Build_VERSION%.zip %FILE_NAME%\*.iso -mx=6
@@ -77,7 +77,7 @@ jobs:
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
           generate_release_notes: false
 
-      # ================= 自动下载最新版 aliyunpan =================
+      # 下载解压aliyunpan
       - name: Install aliyunpan-cli(自动最新版)
         shell: pwsh
         run: |
@@ -86,14 +86,22 @@ jobs:
           Write-Host "Download aliyunpan: $url"
           Invoke-WebRequest -Uri $url -OutFile aliyunpan.zip -UseBasicParsing -TimeoutSec 120
           7z x aliyunpan.zip -oaliyunpan
+          # 查看解压目录文件
+          Get-ChildItem ./aliyunpan/
 
-      # ===================== 以下是修复后的代码 =====================
+      # 进入目录登录阿里云盘【修复找不到exe】
       - name: Login to Aliyun Drive
         shell: pwsh
         run: |
-          .\aliyunpan\aliyunpan.exe login -RefreshToken "${{ secrets.ALI_REFRESH_TOKEN }}"
+          Set-Location ./aliyunpan
+          ./aliyunpan.exe login -RefreshToken "${{ secrets.ALI_REFRESH_TOKEN }}"
 
+      # 返回根目录上传分卷压缩包
       - name: Upload files to Aliyun Drive
         shell: pwsh
         run: |
-          .\aliyunpan\aliyunpan.exe u "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*" "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+          Set-Location ../
+          $fileList = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*"
+          foreach($f in $fileList){
+            ./aliyunpan/aliyunpan.exe u "$($f.FullName)" "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+          }
