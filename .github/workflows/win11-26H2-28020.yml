@@ -69,7 +69,7 @@ jobs:
 
       # 发布 Release
       - name: Create Github Release
-        uses: softprops/gh-release@v2
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}
           name: Release ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}
