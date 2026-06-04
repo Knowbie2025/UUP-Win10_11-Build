@@ -82,19 +82,18 @@ jobs:
         shell: pwsh
         run: |
           $ver = $env:latest_ver
-          # 加国内加速，必加！否则下载失败
           $url = "https://ghfast.top/https://github.com/tickstep/aliyunpan/releases/download/$ver/aliyunpan-$ver-windows-x64.zip"
           Write-Host "Download aliyunpan: $url"
           Invoke-WebRequest -Uri $url -OutFile aliyunpan.zip -UseBasicParsing -TimeoutSec 120
           7z x aliyunpan.zip -oaliyunpan
-          "$PWD\aliyunpan" | Out-File -FilePath $env:GITHUB_PATH -Append
 
+      # ===================== 以下是修复后的代码 =====================
       - name: Login to Aliyun Drive
         shell: pwsh
         run: |
-          aliyunpan login -RefreshToken "${{ secrets.ALI_REFRESH_TOKEN }}"
+          .\aliyunpan\aliyunpan.exe login -RefreshToken "${{ secrets.ALI_REFRESH_TOKEN }}"
 
       - name: Upload files to Aliyun Drive
         shell: pwsh
         run: |
-          aliyunpan u "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*" "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+          .\aliyunpan\aliyunpan.exe u "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*" "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
