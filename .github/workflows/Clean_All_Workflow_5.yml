@@ -8,7 +8,7 @@ jobs:
       actions: write
       contents: read
     steps:
-      - name: All workflows keep 5 runs
+      - name: All workflows keep 3 runs
         uses: Mattraks/delete-workflow-runs@v2
         with:
           token: ${{ github.TOKEN }}
