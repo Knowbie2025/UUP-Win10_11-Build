@@ -50,15 +50,15 @@ jobs:
         shell: cmd
         run: 7z a -tzip -v1900M %FIX_RELEASE_TAG%_%Build_VERSION%.zip %FILE_NAME%\*.iso -mx=6
 
-      # 上传制品
+      # 上传制品【修正action路径】
       - name: Upload Split Zip Artifact
-        uses: upload-artifact@v6
+        uses: actions/upload-artifact@v6
         with:
           name: ISO-Split-Zip-Pack
           path: |
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
 
-      # ===================== 关闭源码包 + 发布Release =====================
+      # Github发布Release（关闭源码包）
       - name: Create Github Release
         uses: softprops/action-gh-release@v2
         with:
@@ -67,28 +67,22 @@ jobs:
           files: |
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
           generate_release_notes: false
-          draft: false
-          prerelease: false
-          # ✅ 关键：禁止自动上传源码包
-          body: "no source code"
           append_body: false
 
-      # ===================== 修复 aliyunpan 解压嵌套目录 =====================
+      # aliyunpan安装，剥离嵌套文件夹
       - name: Install aliyunpan-cli
         shell: pwsh
         run: |
           $url = "https://mirror.ghproxy.com/https://github.com/tickstep/aliyunpan/releases/download/v0.3.9/aliyunpan-v0.3.9-windows-x64.zip"
           Invoke-WebRequest -Uri $url -OutFile aliyunpan.zip
-          7z x aliyunpan.zip -oaliyunpan -y -spe    # 加了 -spe 剥离嵌套文件夹
-          dir ./aliyunpan
+          7z x aliyunpan.zip -oaliyunpan -spe -y
 
-      # ===================== 修复登录 =====================
       - name: Login to Aliyun Drive
         shell: pwsh
         run: |
           ./aliyunpan/aliyunpan.exe login -RefreshToken "${{ secrets.ALI_REFRESH_TOKEN }}"
 
-      # ===================== 修复批量上传 =====================
+      # 遍历批量上传分卷
       - name: Upload files to Aliyun Drive
         shell: pwsh
         run: |
