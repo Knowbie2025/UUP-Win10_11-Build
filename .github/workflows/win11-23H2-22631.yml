@@ -102,14 +102,26 @@ jobs:
         shell: pwsh
         run: aliyunpan -v
 
-      # 登录阿里云盘
+      # 登录阿里云盘 + 校验账号信息
       - name: Login to Aliyun Drive
         shell: pwsh
         run: |
           aliyunpan login -RefreshToken "${{ secrets.ALI_REFRESH_TOKEN }}"
+          # 打印登录信息，验证DriveID正常加载，排查token失效
+          aliyunpan who
 
-      # 上传分卷压缩包
+      # 关键新增：预先创建目标远端目录，杜绝目录不存在空指针
+      - name: Create target remote folder
+        shell: pwsh
+        run: |
+          aliyunpan mkdir "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+
+      # 改用循环逐个上传，废弃zip.*通配符（解决通配符解析panic）
       - name: Upload files to Aliyun Drive
         shell: pwsh
         run: |
-          aliyunpan u "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*" "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+          $fileList = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*"
+          foreach ($file in $fileList) {
+              Write-Host "正在上传：$($file.Name)"
+              aliyunpan u $file.FullName "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+          }
