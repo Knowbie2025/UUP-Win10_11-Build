@@ -14,7 +14,7 @@ env:
   Build_VERSION: '28020.2207'
   FILE_NAME: Windows11_26H2_amd64
   FIX_RELEASE_TAG: Windows11_26H2_amd64
-  ALI_YUN_DRIVE_UPLOAD_PATH: /Windows_10_11_ISO/Windows11_26H2_amd64/
+  ALI_YUN_DRIVE_UPLOAD_PATH: /Windows_10_11_ISO/Windows11_26H2_amd64
 
 jobs:
   Build_UUP:
@@ -67,7 +67,7 @@ jobs:
           path: |
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
 
-      # 发布 Release
+      # 发布 Release【关键：关闭自动生成源码tar/zip包】
       - name: Create Github Release
         uses: softprops/action-gh-release@v2
         with:
@@ -76,8 +76,11 @@ jobs:
           files: |
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
           generate_release_notes: false
+          append_body: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 下载解压aliyunpan【修复：解压后exe在 aliyunpan/aliyunpan-$ver-windows-x64/ 内层目录】
+      # 下载解压aliyunpan，自动记录exe路径
       - name: Install aliyunpan-cli(自动最新版)
         shell: pwsh
         run: |
@@ -85,18 +88,22 @@ jobs:
           $url = "https://ghfast.top/https://github.com/tickstep/aliyunpan/releases/download/$ver/aliyunpan-$ver-windows-x64.zip"
           Write-Host "Download aliyunpan: $url"
           Invoke-WebRequest -Uri $url -OutFile aliyunpan.zip -UseBasicParsing -TimeoutSec 120
-          # 解压到aliyunpan目录，压缩包内自带同名文件夹
           7z x aliyunpan.zip -oaliyunpan
-          # 拼接exe内层路径存入环境变量，后续全局调用
           $exePath = "aliyunpan/aliyunpan-$ver-windows-x64/aliyunpan.exe"
           echo "ALI_EXE=$exePath" >> $env:GITHUB_ENV
           Get-ChildItem ./aliyunpan/ -Recurse
 
-      # 登录阿里云盘（使用环境变量的绝对exe路径，不再cd目录）
+      # 登录阿里云盘
       - name: Login to Aliyun Drive
         shell: pwsh
         run: |
           & ${{ env.ALI_EXE }} login -RefreshToken "${{ secrets.ALI_REFRESH_TOKEN }}"
+
+      # 提前创建远端目录，防止路径不存在报错
+      - name: Mkdir Aliyun Remote Dir
+        shell: pwsh
+        run: |
+          & ${{ env.ALI_EXE }} mkdir "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
 
       # 上传分卷压缩包
       - name: Upload files to Aliyun Drive
@@ -104,5 +111,6 @@ jobs:
         run: |
           $fileList = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*"
           foreach($f in $fileList){
-            & ${{ env.ALI_EXE }} u "$($f.FullName)" "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+            & ${{ env.ALI_EXE }} u "$($f.FullName)" "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}/"
+            Start-Sleep -Milliseconds 800
           }
