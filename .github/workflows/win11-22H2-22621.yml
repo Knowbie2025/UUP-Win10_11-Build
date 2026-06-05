@@ -5,7 +5,6 @@ on:
   push:
     branches: [ main ]
     paths:
-      # 仅匹配文件名含22H2的yml，修改其它yml不会触发本任务。
       - '.github/workflows/win11-22H2-22621.yml'
 
 permissions:
@@ -15,7 +14,6 @@ env:
   Build_VERSION: '22621.6060'
   FILE_NAME: Windows11_22H2_amd64
   FIX_RELEASE_TAG: Windows11_22H2_amd64
-  # 阿里云盘上传目标目录
   ALI_YUN_DRIVE_UPLOAD_PATH: /Windows_10_11_ISO/Windows11_22H2_amd64/
 
 jobs:
@@ -52,15 +50,15 @@ jobs:
         shell: cmd
         run: 7z a -tzip -v1900M %FIX_RELEASE_TAG%_%Build_VERSION%.zip %FILE_NAME%\*.iso -mx=6
 
-      # 上传制品【v5→v6】
+      # 上传制品
       - name: Upload Split Zip Artifact
-        uses: actions/upload-artifact@v6
+        uses: upload-artifact@v6
         with:
           name: ISO-Split-Zip-Pack
           path: |
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
 
-      # Github发布Release（已经是v2，原生Node24不用改）
+      # ===================== 关闭源码包 + 发布Release =====================
       - name: Create Github Release
         uses: softprops/action-gh-release@v2
         with:
@@ -68,21 +66,33 @@ jobs:
           name: Release ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}
           files: |
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
+          generate_release_notes: false
+          draft: false
+          prerelease: false
+          # ✅ 关键：禁止自动上传源码包
+          body: "no source code"
+          append_body: false
 
-      # ===================== aliyunpan安装（删除PATH写入） =====================
+      # ===================== 修复 aliyunpan 解压嵌套目录 =====================
       - name: Install aliyunpan-cli
         shell: pwsh
         run: |
           $url = "https://mirror.ghproxy.com/https://github.com/tickstep/aliyunpan/releases/download/v0.3.9/aliyunpan-v0.3.9-windows-x64.zip"
           Invoke-WebRequest -Uri $url -OutFile aliyunpan.zip
-          7z x aliyunpan.zip -oaliyunpan
+          7z x aliyunpan.zip -oaliyunpan -y -spe    # 加了 -spe 剥离嵌套文件夹
+          dir ./aliyunpan
 
+      # ===================== 修复登录 =====================
       - name: Login to Aliyun Drive
         shell: pwsh
         run: |
-          .\aliyunpan\aliyunpan.exe login -RefreshToken "${{ secrets.ALI_REFRESH_TOKEN }}"
+          ./aliyunpan/aliyunpan.exe login -RefreshToken "${{ secrets.ALI_REFRESH_TOKEN }}"
 
+      # ===================== 修复批量上传 =====================
       - name: Upload files to Aliyun Drive
         shell: pwsh
         run: |
-          .\aliyunpan\aliyunpan.exe u "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*" "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+          $files = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*"
+          foreach ($f in $files) {
+            ./aliyunpan/aliyunpan.exe u $f.FullName "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+          }
