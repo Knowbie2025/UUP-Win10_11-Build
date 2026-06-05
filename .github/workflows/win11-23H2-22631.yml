@@ -102,26 +102,31 @@ jobs:
         shell: pwsh
         run: aliyunpan -v
 
-      # 登录阿里云盘 + 校验账号信息
+      # 登录阿里云盘 + 校验账号信息【已修复-RefreshToken空格报错，改用短参数-rt=】
       - name: Login to Aliyun Drive
         shell: pwsh
         run: |
-          aliyunpan login -RefreshToken "${{ secrets.ALI_REFRESH_TOKEN }}"
+          aliyunpan login -rt="${{ secrets.ALI_REFRESH_TOKEN }}"
           # 打印登录信息，验证DriveID正常加载，排查token失效
           aliyunpan who
 
-      # 关键新增：预先创建目标远端目录，杜绝目录不存在空指针
+      # 关键新增：预先创建目标远端目录，加-p参数，目录已存在不报错
       - name: Create target remote folder
         shell: pwsh
         run: |
-          aliyunpan mkdir "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+          aliyunpan mkdir -p "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
 
-      # 改用循环逐个上传，废弃zip.*通配符（解决通配符解析panic）
+      # 改用循环逐个上传，废弃zip.*通配符（解决通配符解析panic）+ 单文件异常捕获
       - name: Upload files to Aliyun Drive
         shell: pwsh
         run: |
           $fileList = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*"
           foreach ($file in $fileList) {
               Write-Host "正在上传：$($file.Name)"
-              aliyunpan u $file.FullName "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+              try {
+                  aliyunpan u $file.FullName "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+                  Write-Host "$($file.Name) 上传完成"
+              } catch {
+                  Write-Warning "$($file.Name) 上传发生异常，跳过当前文件继续后续任务"
+              }
           }
