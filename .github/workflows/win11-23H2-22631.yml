@@ -79,8 +79,7 @@ jobs:
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
           generate_release_notes: false
 
-      # ==========【重点修改：修正aliyunpan解压+PATH配置】==========
-      # 自动下载最新aliyunpan，ghfast.top加速（替代失效ghproxy）
+      # ==========【修复拆分：安装aliyunpan，写入PATH】==========
       - name: Install aliyunpan-cli(动态最新版)
         shell: pwsh
         run: |
@@ -94,17 +93,22 @@ jobs:
           # 查找exe所在真实目录
           $aliExePath = Get-ChildItem -Path ./aliyunpan -Recurse -Filter aliyunpan.exe | Select-Object -First 1
           $aliBinDir = Split-Path $aliExePath.FullName -Parent
-          # 把exe所在真实目录写入PATH环境变量
+          # 把exe所在真实目录写入GITHUB_PATH（后续所有步骤生效）
           echo "$aliBinDir" | Out-File -FilePath $env:GITHUB_PATH -Append
           Write-Host "aliyunpan bin path: $aliBinDir"
-          # 验证命令是否可用
-          aliyunpan -v
 
+      # 【独立步骤：PATH已刷新，验证aliyunpan版本】
+      - name: Check aliyunpan version
+        shell: pwsh
+        run: aliyunpan -v
+
+      # 登录阿里云盘
       - name: Login to Aliyun Drive
         shell: pwsh
         run: |
           aliyunpan login -RefreshToken "${{ secrets.ALI_REFRESH_TOKEN }}"
 
+      # 上传分卷压缩包
       - name: Upload files to Aliyun Drive
         shell: pwsh
         run: |
