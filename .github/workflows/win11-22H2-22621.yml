@@ -69,12 +69,12 @@ jobs:
           generate_release_notes: false
           append_body: false
 
-      # aliyunpan安装，剥离嵌套文件夹
+      # aliyunpan安装，替换失效加速+下载容错
       - name: Install aliyunpan-cli
         shell: pwsh
         run: |
-          $url = "https://mirror.ghproxy.com/https://github.com/tickstep/aliyunpan/releases/download/v0.3.9/aliyunpan-v0.3.9-windows-x64.zip"
-          Invoke-WebRequest -Uri $url -OutFile aliyunpan.zip
+          $url = "https://ghfast.top/https://github.com/tickstep/aliyunpan/releases/download/v0.3.9/aliyunpan-v0.3.9-windows-x64.zip"
+          Invoke-WebRequest -Uri $url -OutFile aliyunpan.zip -UseBasicParsing -TimeoutSec 180 -SkipCertificateCheck
           7z x aliyunpan.zip -oaliyunpan -spe -y
 
       - name: Login to Aliyun Drive
