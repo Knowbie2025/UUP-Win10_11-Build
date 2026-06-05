@@ -67,7 +67,7 @@ jobs:
           path: |
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
 
-      # 发布 Release【关键：关闭自动生成源码tar/zip包】
+      # 发布 Release（彻底关闭源码包）
       - name: Create Github Release
         uses: softprops/action-gh-release@v2
         with:
@@ -77,21 +77,19 @@ jobs:
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
           generate_release_notes: false
           append_body: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 下载解压aliyunpan，自动记录exe路径
+      # 下载解压 aliyunpan（修复域名 + 解压路径）
       - name: Install aliyunpan-cli(自动最新版)
         shell: pwsh
         run: |
           $ver = $env:latest_ver
           $url = "https://ghfast.top/https://github.com/tickstep/aliyunpan/releases/download/$ver/aliyunpan-$ver-windows-x64.zip"
           Write-Host "Download aliyunpan: $url"
-          Invoke-WebRequest -Uri $url -OutFile aliyunpan.zip -UseBasicParsing -TimeoutSec 120
-          7z x aliyunpan.zip -oaliyunpan
-          $exePath = "aliyunpan/aliyunpan-$ver-windows-x64/aliyunpan.exe"
+          Invoke-WebRequest -Uri $url -OutFile aliyunpan.zip -UseBasicParsing -TimeoutSec 180 -SkipCertificateCheck
+          7z x aliyunpan.zip -oaliyunpan -spe -y
+          $exePath = "aliyunpan/aliyunpan.exe"
           echo "ALI_EXE=$exePath" >> $env:GITHUB_ENV
-          Get-ChildItem ./aliyunpan/ -Recurse
+          Get-ChildItem ./aliyunpan/
 
       # 登录阿里云盘
       - name: Login to Aliyun Drive
@@ -99,18 +97,18 @@ jobs:
         run: |
           & ${{ env.ALI_EXE }} login -RefreshToken "${{ secrets.ALI_REFRESH_TOKEN }}"
 
-      # 提前创建远端目录，防止路径不存在报错
+      # 提前创建远端目录
       - name: Mkdir Aliyun Remote Dir
         shell: pwsh
         run: |
           & ${{ env.ALI_EXE }} mkdir "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
 
-      # 上传分卷压缩包
+      # 上传分卷压缩包（修复 panic 崩溃）
       - name: Upload files to Aliyun Drive
         shell: pwsh
         run: |
           $fileList = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*"
           foreach($f in $fileList){
             & ${{ env.ALI_EXE }} u "$($f.FullName)" "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}/"
-            Start-Sleep -Milliseconds 800
+            Start-Sleep -Milliseconds 1000
           }
