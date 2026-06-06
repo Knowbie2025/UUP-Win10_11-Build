@@ -14,8 +14,13 @@ env:
   Build_VERSION: '28020.2207'
   FILE_NAME: Windows11_26H2_amd64
   FIX_RELEASE_TAG: Windows11_26H2_amd64
-  # ✅ 关键修复：阿里云盘路径 去掉最前面的 /
   ALI_YUN_DRIVE_UPLOAD_PATH: Windows_10_11_ISO/Windows11_26H2_amd64
+
+  # ==================== Alist配置，自行修改域名、账号密码 ====================
+  ALIST_URL: "https://你的alist域名.com"
+  ALIST_USER: "你的alist用户名"
+  ALIST_PASS: "你的alist密码"
+  ALIST_UPLOAD_PATH: "/阿里云盘-Windows_10_11_ISO/${{ env.FIX_RELEASE_TAG }}"
 
 jobs:
   Build_UUP:
@@ -24,7 +29,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      # UUP 打包 ISO
+      # UUP编译打包ISO
       - name: UUP dump build ISO
         shell: cmd
         run: |
@@ -39,19 +44,32 @@ jobs:
           dir *.iso
           cd ..
 
-      # 安装 7zip
+      # 安装7zip
       - name: Install 7-Zip via Powershell
         shell: pwsh
         run: |
           choco install 7zip -y
           echo "${env:ProgramFiles}\\7-Zip" | Out-File -FilePath $env:GITHUB_PATH -Append
 
-      # 分卷压缩 1900M每卷
+      # 1900M分卷压缩
       - name: Split Compress ZIP(1.9G/part)
         shell: cmd
         run: 7z a -tzip -v1900M %FIX_RELEASE_TAG%_%Build_VERSION%.zip %FILE_NAME%\*.iso -mx=6
 
-      # 上传制品
+      # 生成Release正文（详情默认展开）
+      - name: Gen Release Body (Auto Open)
+        id: gen_body
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*" | Select-Object -ExpandProperty Name
+          $md = "<details open>`n<summary>📦 分卷压缩包（默认展开）</summary>`n`n"
+          foreach($f in $files){ $md += "- $f`n" }
+          $md += "`n</details>"
+          echo "BODY_CONTENT<<EOF" >> $env:GITHUB_ENV
+          echo $md >> $env:GITHUB_ENV
+          echo "EOF" >> $env:GITHUB_ENV
+
+      # 上传制品缓存
       - name: Upload Split Zip Artifact
         uses: actions/upload-artifact@v6
         with:
@@ -59,18 +77,19 @@ jobs:
           path: |
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
 
-      # 发布 Release
+      # 创建Github Release
       - name: Create Github Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}
           name: Release ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}
+          body: ${{ env.BODY_CONTENT }}
           files: |
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
           generate_release_notes: false
           append_body: false
 
-      # 安装 aliyunpan-cli(v0.3.7稳定无崩溃版)
+      # 安装aliyunpan-cli v0.3.7（修复完整下载链接）
       - name: Install aliyunpan-cli(v0.3.7)
         shell: pwsh
         run: |
@@ -80,46 +99,78 @@ jobs:
           $ALI_EXE = (Get-ChildItem ./aliyunpan -Recurse -Filter "aliyunpan.exe").FullName
           echo "ALI_EXE=$ALI_EXE" >> $env:GITHUB_ENV
 
-      # 登录阿里云盘
+      # 阿里云盘登录
       - name: Login to Aliyun Drive
         shell: pwsh
         run: |
           & "$env:ALI_EXE" login -RefreshToken "${{ secrets.ALI_REFRESH_TOKEN }}"
           & "$env:ALI_EXE" whoami
 
-      # ✅ 修复：自动创建目录 + 日志可见
+      # 阿里云盘自动建目录
       - name: Mkdir Aliyun Remote Dir
         shell: pwsh
         run: |
           $remotePath="${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
-          Write-Host "目标路径：$remotePath"
+          Write-Host "阿里云目标路径：$remotePath"
           $checkRet = & "$env:ALI_EXE" ls "$remotePath" 2>&1
           if ($LASTEXITCODE -ne 0) {
             Write-Host "目录不存在，正在创建..."
             & "$env:ALI_EXE" mkdir "$remotePath"
             Start-Sleep 2
           }
-          & "$env:ALI_EXE" ls "$remotePath"
 
-      # ✅ 修复：稳定上传 + 日志 + 重试
-      - name: Upload files to Aliyun Drive
+      # 上传阿里云盘（带重试）
+      - name: Upload to Aliyun Drive
         shell: pwsh
         run: |
           $remotePath="${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
           $fileList = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*"
           foreach($f in $fileList){
-            Write-Host "`n正在上传：$($f.Name)"
+            Write-Host "上传阿里云：$($f.Name)"
             $retry = 2
             for($i=0;$i -le $retry;$i++){
               & "$env:ALI_EXE" upload "$($f.FullName)" "$remotePath"
               if($LASTEXITCODE -eq 0){ break }
-              Write-Host "上传失败，重试中..."
+              Write-Host "上传失败，等待10s重试"
               Start-Sleep 10
             }
-            Start-Sleep 5
+            Start-Sleep 3
           }
-          Write-Host "`n上传完成，校验目录："
-          & "$env:ALI_EXE" ls "$remotePath"
+
+      # 上传Alist【优化流式PUT上传，解决大文件编码异常】
+      - name: Upload to Alist
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Continue"
+          $baseUrl = "${{ env.ALIST_URL }}"
+          $user = "${{ env.ALIST_USER }}"
+          $pass = "${{ env.ALIST_PASS }}"
+          $uploadPath = "${{ env.ALIST_UPLOAD_PATH }}"
+
+          # 获取Alist登录Token
+          $loginBody = @{username=$user;password=$pass} | ConvertTo-Json
+          $loginRes = Invoke-RestMethod -Method Post -Uri "$baseUrl/api/auth/login" -Body $loginBody -ContentType "application/json"
+          $token = $loginRes.data.token
+
+          # 远程目录不存在自动创建
+          try{
+            Invoke-RestMethod -Post "$baseUrl/api/fs/mkdir" -Headers @{Authorization="Bearer $token"} -Body (@{path=$uploadPath}|ConvertTo-Json) -ContentType "application/json" | Out-Null
+          }catch{}
+
+          # 循环流式上传每个分卷
+          $files = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*"
+          foreach ($f in $files) {
+            Write-Host "上传Alist：$($f.Name)"
+            $destPath = [System.Web.HttpUtility]::UrlEncode("$uploadPath/$($f.Name)")
+            $headers = @{
+              "Authorization" = "Bearer $token"
+              "File-Path"    = $destPath
+              "Content-Type" = "application/octet-stream"
+            }
+            # 原生二进制流上传，无编码错乱
+            Invoke-RestMethod -Uri "$baseUrl/api/fs/put" -Method Put -Headers $headers -InFile $f.FullName
+            Start-Sleep 3
+          }
 
       # 清理临时文件
       - name: Clean Workspace
