@@ -78,7 +78,7 @@ jobs:
           generate_release_notes: false
           append_body: false
 
-      # 下载解压 aliyunpan（修复域名 + 解压路径）
+      # 下载解压 aliyunpan【关键修复：递归查找exe，兼容内嵌版本文件夹】
       - name: Install aliyunpan-cli(自动最新版)
         shell: pwsh
         run: |
@@ -87,35 +87,36 @@ jobs:
           Write-Host "Download aliyunpan: $url"
           Invoke-WebRequest -Uri $url -OutFile aliyunpan.zip -UseBasicParsing -TimeoutSec 180 -SkipCertificateCheck
           7z x aliyunpan.zip -oaliyunpan -spe -y
-          $exePath = "./aliyunpan/aliyunpan.exe"
-          # 校验exe是否存在
-          if(Test-Path $exePath){
-            echo "ALI_EXE=$exePath" >> $env:GITHUB_ENV
-          }else{
-            Write-Error "aliyunpan.exe not found!"
+          # 打印目录用于排错
+          Get-ChildItem ./aliyunpan -Recurse
+          # 全局递归搜索exe，解决压缩包内置版本目录
+          $ALI_EXE = (Get-ChildItem ./aliyunpan -Recurse -Filter "aliyunpan.exe").FullName
+          if(-not $ALI_EXE){
+            Write-Error "aliyunpan.exe 未找到！"
             exit 1
           }
-          Get-ChildItem ./aliyunpan/
+          echo "ALI_EXE=$ALI_EXE" >> $env:GITHUB_ENV
+          Write-Host "Aliyunpan路径: $ALI_EXE"
 
-      # 登录阿里云盘【修复：改用$env读取环境变量】
+      # 登录阿里云盘
       - name: Login to Aliyun Drive
         shell: pwsh
         run: |
-          & $env:ALI_EXE login -RefreshToken "${{ secrets.ALI_REFRESH_TOKEN }}"
+          & "$env:ALI_EXE" login -RefreshToken "${{ secrets.ALI_REFRESH_TOKEN }}"
 
       # 提前创建远端目录
       - name: Mkdir Aliyun Remote Dir
         shell: pwsh
         run: |
-          & $env:ALI_EXE mkdir "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+          & "$env:ALI_EXE" mkdir "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
 
-      # 上传分卷压缩包（修复 panic 崩溃、循环上传）
+      # 上传分卷压缩包（防panic、单文件延时）
       - name: Upload files to Aliyun Drive
         shell: pwsh
         run: |
           $fileList = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*"
           foreach($f in $fileList){
             Write-Host "Start upload: $($f.FullName)"
-            & $env:ALI_EXE u "$($f.FullName)" "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}/"
+            & "$env:ALI_EXE" u "$($f.FullName)" "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}/"
             Start-Sleep -Milliseconds 1500
           }
