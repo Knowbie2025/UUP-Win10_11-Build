@@ -17,11 +17,11 @@ env:
   # 原生阿里云盘真实目录（aliyunpan上传用）
   ALI_YUN_DRIVE_UPLOAD_PATH: Windows_10_11_ISO/Windows11_26H1_amd64
 
-  # 从Secrets读取，不要明文填写
+  # 从仓库Secrets读取，禁止明文填写
   ALIST_URL: ${{ secrets.ALIST_DOMAIN }}
   ALIST_USER: ${{ secrets.ALIST_USER }}
   ALIST_PASS: ${{ secrets.ALIST_PWD }}
-  # 你的AList目标路径：/阿里云盘-Windows_10_11_ISO/Windows11_26H1_amd64
+  # AList最终路径：/阿里云盘-Windows_10_11_ISO/Windows11_26H1_amd64
   ALIST_UPLOAD_PATH: "/阿里云盘-Windows_10_11_ISO/${{ env.FIX_RELEASE_TAG }}"
 
 jobs:
@@ -139,7 +139,7 @@ jobs:
             Start-Sleep 3
           }
 
-      # AList上传（目标：/阿里云盘-Windows_10_11_ISO/Windows11_26H1_amd64）
+      # AList上传（最终路径：/阿里云盘-Windows_10_11_ISO/Windows11_26H1_amd64）
       - name: Upload to Alist
         shell: pwsh
         run: |
