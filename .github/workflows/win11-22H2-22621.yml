@@ -14,7 +14,7 @@ env:
   Build_VERSION: '22621.6060'
   FILE_NAME: Windows11_22H2_amd64
   FIX_RELEASE_TAG: Windows11_22H2_amd64
-  ALI_YUN_DRIVE_UPLOAD_PATH: /Windows_10_11_ISO/Windows11_22H2_amd64/
+  ALI_YUN_DRIVE_UPLOAD_PATH: /Windows_10_11_ISO/Windows11_22H2_amd64
 
 jobs:
   Build_UUP:
@@ -23,7 +23,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      # UUP打包ISO
+      # UUP 打包 ISO
       - name: UUP dump build ISO
         shell: cmd
         run: |
@@ -38,14 +38,14 @@ jobs:
           dir *.iso
           cd ..
 
-      # 安装7zip
+      # 安装 7zip
       - name: Install 7-Zip via Powershell
         shell: pwsh
         run: |
           choco install 7zip -y
           echo "${env:ProgramFiles}\7-Zip" | Out-File -FilePath $env:GITHUB_PATH -Append
 
-      # 1.9G分卷ZIP
+      # 1.9G 分卷压缩
       - name: Split Compress ZIP(1.9G/part)
         shell: cmd
         run: 7z a -tzip -v1900M %FIX_RELEASE_TAG%_%Build_VERSION%.zip %FILE_NAME%\*.iso -mx=6
@@ -58,7 +58,7 @@ jobs:
           path: |
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
 
-      # Github发布Release
+      # 创建 GitHub Release
       - name: Create Github Release
         uses: softprops/action-gh-release@v2
         with:
@@ -69,50 +69,56 @@ jobs:
           generate_release_notes: false
           append_body: false
 
-      # ==========修复1：升级aliyunpan到无BUG稳定版v0.4.2（抛弃坏的v0.3.9）==========
-      - name: Install aliyunpan-cli
+      # ==================== 阿里云盘上传（已全修复）====================
+      # 安装稳定版 aliyunpan v0.3.7
+      - name: Install aliyunpan-cli v0.3.7
         shell: pwsh
         run: |
-          $url = "https://ghfast.top/https://github.com/tickstep/aliyunpan/releases/download/v0.3.9/aliyunpan-v0.3.9-windows-x64.zip"
+          $url = "https://ghfast.top/https://github.com/tickstep/aliyunpan/releases/download/v0.3.7/aliyunpan-v0.3.7-windows-x64.zip"
           Invoke-WebRequest -Uri $url -OutFile aliyunpan.zip -UseBasicParsing -TimeoutSec 180 -SkipCertificateCheck
           7z x aliyunpan.zip -oaliyunpan -spe -y
           $ALI_EXE = (Get-ChildItem ./aliyunpan -Recurse -Filter "aliyunpan.exe").FullName
           if(-not (Test-Path $ALI_EXE)){
-            Write-Error "aliyunpan.exe不存在，终止任务"
+            Write-Error "aliyunpan.exe 不存在，终止任务"
             exit 1
           }
           echo "ALI_EXE=$ALI_EXE" >> $env:GITHUB_ENV
-          Write-Host "客户端完整路径：$ALI_EXE"
+          Write-Host "阿里云盘客户端路径：$ALI_EXE"
 
       # 登录阿里云盘
       - name: Login to Aliyun Drive
         shell: pwsh
         run: |
           & "$env:ALI_EXE" login -RefreshToken "${{ secrets.ALI_REFRESH_TOKEN }}"
+          & "$env:ALI_EXE" whoami
 
-      # ==========修复2：先判断远端目录是否存在，不存在才创建，避免mkdir已存在触发panic==========
-      - name: Mkdir Remote Folder
+      # 创建远端目录（不存在才创建）
+      - name: Create remote directory
         shell: pwsh
         run: |
           $remotePath="${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
-          # 查看目录是否存在
           $check = & "$env:ALI_EXE" ls $remotePath 2>&1
           if($LASTEXITCODE -ne 0){
-            Write-Host "目录不存在，执行创建：$remotePath"
+            Write-Host "目录不存在，创建：$remotePath"
             & "$env:ALI_EXE" mkdir "$remotePath"
           }else{
-            Write-Host "远端目录已存在，跳过mkdir"
+            Write-Host "目录已存在，跳过创建"
           }
+          & "$env:ALI_EXE" ls $remotePath
 
-      # ==========修复3：改用【sync同步命令替代u上传】，sync容错远高于u，规避u命令空指针BUG==========
-      # ==========修复4：延长单文件间隔到3秒，阿里云盘限流极易造成cli内存崩溃==========
+      # 上传分卷文件到阿里云盘（正确命令 + 完整日志）
       - name: Upload files to Aliyun Drive
         shell: pwsh
         run: |
+          $remotePath="${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
           $files = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*"
           foreach ($f in $files) {
+            Write-Host "=================================================="
             Write-Host "正在上传：$($f.Name)"
-            # sync 本地文件 远端目录，自动跳过已存在文件，不会空指针崩溃
-            & "$env:ALI_EXE" sync --upload "$($f.FullName)" "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+            & "$env:ALI_EXE" upload "$($f.FullName)" "$remotePath"
+            Write-Host "上传完成，退出码：$LASTEXITCODE"
             Start-Sleep -Seconds 3
           }
+          Write-Host "=================================================="
+          Write-Host "【全部上传结束，列出网盘文件核对】"
+          & "$env:ALI_EXE" ls $remotePath
