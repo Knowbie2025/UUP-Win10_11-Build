@@ -50,7 +50,7 @@ jobs:
         shell: cmd
         run: 7z a -tzip -v1900M %FIX_RELEASE_TAG%_%Build_VERSION%.zip %FILE_NAME%\*.iso -mx=6
 
-      # 上传制品【修正action路径】
+      # 上传制品
       - name: Upload Split Zip Artifact
         uses: actions/upload-artifact@v6
         with:
@@ -58,7 +58,7 @@ jobs:
           path: |
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
 
-      # Github发布Release（关闭源码包）
+      # Github发布Release
       - name: Create Github Release
         uses: softprops/action-gh-release@v2
         with:
@@ -69,24 +69,41 @@ jobs:
           generate_release_notes: false
           append_body: false
 
-      # aliyunpan安装，替换失效加速+下载容错
+      # aliyunpan安装：自动查找exe，解决压缩包内层嵌套文件夹
       - name: Install aliyunpan-cli
         shell: pwsh
         run: |
           $url = "https://ghfast.top/https://github.com/tickstep/aliyunpan/releases/download/v0.3.9/aliyunpan-v0.3.9-windows-x64.zip"
           Invoke-WebRequest -Uri $url -OutFile aliyunpan.zip -UseBasicParsing -TimeoutSec 180 -SkipCertificateCheck
           7z x aliyunpan.zip -oaliyunpan -spe -y
+          # 递归搜索exe真实全路径，兼容压缩包自带版本文件夹
+          $ALI_EXE = (Get-ChildItem ./aliyunpan -Recurse -Filter "aliyunpan.exe").FullName
+          if(-not (Test-Path $ALI_EXE)){
+            Write-Error "aliyunpan.exe不存在，终止任务"
+            exit 1
+          }
+          echo "ALI_EXE=$ALI_EXE" >> $env:GITHUB_ENV
+          Write-Host "客户端完整路径：$ALI_EXE"
 
+      # 登录阿里云盘（用环境变量全路径，引号防空格报错）
       - name: Login to Aliyun Drive
         shell: pwsh
         run: |
-          ./aliyunpan/aliyunpan.exe login -RefreshToken "${{ secrets.ALI_REFRESH_TOKEN }}"
+          & "$env:ALI_EXE" login -RefreshToken "${{ secrets.ALI_REFRESH_TOKEN }}"
 
-      # 遍历批量上传分卷
+      # 提前创建远端目录，避免目录不存在上传报错
+      - name: Mkdir Remote Folder
+        shell: pwsh
+        run: |
+          & "$env:ALI_EXE" mkdir "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+
+      # 遍历批量上传分卷，单文件延时防限流崩溃
       - name: Upload files to Aliyun Drive
         shell: pwsh
         run: |
           $files = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*"
           foreach ($f in $files) {
-            ./aliyunpan/aliyunpan.exe u $f.FullName "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+            Write-Host "正在上传：$($f.Name)"
+            & "$env:ALI_EXE" u "$($f.FullName)" "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+            Start-Sleep -Milliseconds 1200
           }
