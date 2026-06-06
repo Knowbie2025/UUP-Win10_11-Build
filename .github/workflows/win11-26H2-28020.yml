@@ -87,28 +87,35 @@ jobs:
           Write-Host "Download aliyunpan: $url"
           Invoke-WebRequest -Uri $url -OutFile aliyunpan.zip -UseBasicParsing -TimeoutSec 180 -SkipCertificateCheck
           7z x aliyunpan.zip -oaliyunpan -spe -y
-          $exePath = "aliyunpan/aliyunpan.exe"
-          echo "ALI_EXE=$exePath" >> $env:GITHUB_ENV
+          $exePath = "./aliyunpan/aliyunpan.exe"
+          # 校验exe是否存在
+          if(Test-Path $exePath){
+            echo "ALI_EXE=$exePath" >> $env:GITHUB_ENV
+          }else{
+            Write-Error "aliyunpan.exe not found!"
+            exit 1
+          }
           Get-ChildItem ./aliyunpan/
 
-      # 登录阿里云盘
+      # 登录阿里云盘【修复：改用$env读取环境变量】
       - name: Login to Aliyun Drive
         shell: pwsh
         run: |
-          & ${{ env.ALI_EXE }} login -RefreshToken "${{ secrets.ALI_REFRESH_TOKEN }}"
+          & $env:ALI_EXE login -RefreshToken "${{ secrets.ALI_REFRESH_TOKEN }}"
 
       # 提前创建远端目录
       - name: Mkdir Aliyun Remote Dir
         shell: pwsh
         run: |
-          & ${{ env.ALI_EXE }} mkdir "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+          & $env:ALI_EXE mkdir "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
 
-      # 上传分卷压缩包（修复 panic 崩溃）
+      # 上传分卷压缩包（修复 panic 崩溃、循环上传）
       - name: Upload files to Aliyun Drive
         shell: pwsh
         run: |
           $fileList = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*"
           foreach($f in $fileList){
-            & ${{ env.ALI_EXE }} u "$($f.FullName)" "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}/"
-            Start-Sleep -Milliseconds 1000
+            Write-Host "Start upload: $($f.FullName)"
+            & $env:ALI_EXE u "$($f.FullName)" "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}/"
+            Start-Sleep -Milliseconds 1500
           }
