@@ -102,13 +102,11 @@ jobs:
         shell: pwsh
         run: aliyunpan -v
 
-      # 【已修复：管道注入Token，兼容无参数的旧版aliyunpan】
+      # ✅【最终修复：使用官方双横线小写参数 --refresh-token】
       - name: Login to Aliyun Drive
         shell: pwsh
         run: |
-          # 将密钥通过管道输入，模拟手动粘贴输入，不再使用任何命令行参数
-          "${{ secrets.ALI_REFRESH_TOKEN }}" | aliyunpan login
-          # 打印登录信息，校验账号
+          aliyunpan login --refresh-token="${{ secrets.ALI_REFRESH_TOKEN }}"
           aliyunpan who
 
       # 预先创建远端目录
