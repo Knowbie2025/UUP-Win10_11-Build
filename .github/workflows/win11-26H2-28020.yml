@@ -113,17 +113,18 @@ jobs:
             & "$env:ALI_EXE" mkdir "$remotePath"
           } else {
             Write-Host "远端目录已存在，跳过创建"
+            Write-Host "目录内容:"
+            & "$env:ALI_EXE" ls "$remotePath"
           }
 
-      # =========修复2：u命令替换为 sync --upload（官方同步命令，无空指针BUG，自动跳过重复文件）=========
-      # =========修复3：休眠1500ms → 3000ms(3秒)，降低接口调用频率防限流崩溃=========
+      # 【重点修改：删除错误sync，改用u命令 + 自带--retry重试，单文件上传】
       - name: Upload files to Aliyun Drive
         shell: pwsh
         run: |
           $fileList = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*"
           foreach($f in $fileList){
-            Write-Host "Start upload: $($f.FullName)"
-            # sync上传替代u，自带异常容错、文件去重
-            & "$env:ALI_EXE" sync --upload "$($f.FullName)" "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}/"
+            Write-Host "正在上传：$($f.Name)"
+            # u 本地文件 远端目录，--retry 3 失败自动重试3次
+            & "$env:ALI_EXE" u "$($f.FullName)" "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}" --retry 3
             Start-Sleep -Seconds 3
           }
