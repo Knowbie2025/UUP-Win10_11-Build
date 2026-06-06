@@ -14,15 +14,11 @@ env:
   Build_VERSION: '28000.2179'
   FILE_NAME: Windows11_26H1_amd64
   FIX_RELEASE_TAG: Windows11_26H1_amd64
-  # 原生阿里云盘真实目录（aliyunpan上传用）
   ALI_YUN_DRIVE_UPLOAD_PATH: Windows_10_11_ISO/Windows11_26H1_amd64
-
-  # 从仓库Secrets读取，禁止明文填写
+  # Secrets统一从仓库密钥读取，顶层不做路径拼接
   ALIST_URL: ${{ secrets.ALIST_DOMAIN }}
   ALIST_USER: ${{ secrets.ALIST_USER }}
   ALIST_PASS: ${{ secrets.ALIST_PWD }}
-  # AList最终路径：/阿里云盘-Windows_10_11_ISO/Windows11_26H1_amd64
-  ALIST_UPLOAD_PATH: "/阿里云盘-Windows_10_11_ISO/${{ env.FIX_RELEASE_TAG }}"
 
 jobs:
   Build_UUP:
@@ -58,7 +54,7 @@ jobs:
         shell: cmd
         run: 7z a -tzip -v1900M %FIX_RELEASE_TAG%_%Build_VERSION%.zip %FILE_NAME%\*.iso -mx=6
 
-      # 生成Release正文
+      # 生成Release正文（<details open>默认展开清单）
       - name: Gen Release Body (Auto Open)
         id: gen_body
         shell: pwsh
@@ -91,7 +87,7 @@ jobs:
           generate_release_notes: false
           append_body: false
 
-      # 安装aliyunpan-cli v0.3.7
+      # 安装aliyunpan-cli v0.3.7【修复残缺下载链接】
       - name: Install aliyunpan-cli(v0.3.7)
         shell: pwsh
         run: |
@@ -139,7 +135,7 @@ jobs:
             Start-Sleep 3
           }
 
-      # AList上传（最终路径：/阿里云盘-Windows_10_11_ISO/Windows11_26H1_amd64）
+      # AList上传【路径在脚本内动态拼接，规避顶层env表达式报错】
       - name: Upload to Alist
         shell: pwsh
         run: |
@@ -147,7 +143,8 @@ jobs:
           $baseUrl = "${{ env.ALIST_URL }}"
           $user = "${{ env.ALIST_USER }}"
           $pass = "${{ env.ALIST_PASS }}"
-          $uploadPath = "${{ env.ALIST_UPLOAD_PATH }}"
+          # 步骤内动态拼接路径，解决顶层不能嵌套env问题
+          $uploadPath = "/阿里云盘-Windows_10_11_ISO/${{ env.FIX_RELEASE_TAG }}"
 
           # 登录获取Token
           $loginBody = @{username=$user;password=$pass} | ConvertTo-Json
@@ -161,7 +158,7 @@ jobs:
             Invoke-RestMethod -Uri "$baseUrl/api/fs/mkdir" -Method Post -Headers $header -Body $mkBody -ContentType "application/json" | Out-Null
           }catch{ Write-Host "目录已存在，跳过创建" }
 
-          # 逐个分卷上传
+          # 逐个分卷二进制流式上传
           $files = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*"
           foreach ($f in $files) {
             Write-Host "上传Alist：$($f.Name)"
