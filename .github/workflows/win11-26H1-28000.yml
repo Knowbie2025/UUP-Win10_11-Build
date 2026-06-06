@@ -5,26 +5,33 @@ on:
   push:
     branches: [ main ]
     paths:
-      # 仅匹配文件名含26H1的yml，修改其它yml不会触发本任务
       - '.github/workflows/win11-26H1-28000.yml'
 
 permissions:
   contents: write
 
 env:
-  Build_VERSION: '22621.6060'
+  Build_VERSION: '28000.2179'
   FILE_NAME: Windows11_26H1_amd64
   FIX_RELEASE_TAG: Windows11_26H1_amd64
-  ALI_TARGET_DIR: "/Windows_10_11_ISO/Windows11_26H1_amd64/" # 阿里云盘存放目录，按需修改
+  # 原生阿里云盘真实目录（aliyunpan上传用）
+  ALI_YUN_DRIVE_UPLOAD_PATH: Windows_10_11_ISO/Windows11_26H1_amd64
+
+  # 从Secrets读取，不要明文填写
+  ALIST_URL: ${{ secrets.ALIST_DOMAIN }}
+  ALIST_USER: ${{ secrets.ALIST_USER }}
+  ALIST_PASS: ${{ secrets.ALIST_PWD }}
+  # 你的AList目标路径：/阿里云盘-Windows_10_11_ISO/Windows11_26H1_amd64
+  ALIST_UPLOAD_PATH: "/阿里云盘-Windows_10_11_ISO/${{ env.FIX_RELEASE_TAG }}"
 
 jobs:
   Build_UUP:
-    runs-on: windows-2022 # 锁定镜像规避windows-latest升级
+    runs-on: windows-2022
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
-      # UUP生成ISO
+      # UUP编译打包ISO
       - name: UUP dump build ISO
         shell: cmd
         run: |
@@ -32,7 +39,6 @@ jobs:
           dir
           uup_download_windows.cmd
 
-      # CMD查看ISO目录
       - name: List ISO Files
         shell: cmd
         run: |
@@ -40,69 +46,136 @@ jobs:
           dir *.iso
           cd ..
 
-      # PS安装7zip
+      # 安装7zip
       - name: Install 7-Zip via Powershell
         shell: pwsh
         run: |
           choco install 7zip -y
-          echo "${env:ProgramFiles}\7-Zip" | Out-File -FilePath $env:GITHUB_PATH -Append
+          echo "${env:ProgramFiles}\\7-Zip" | Out-File -FilePath $env:GITHUB_PATH -Append
 
-      # 分卷压缩（cmd内%变量%正常生效）
+      # 1900M分卷压缩
       - name: Split Compress ZIP(1.9G/part)
         shell: cmd
         run: 7z a -tzip -v1900M %FIX_RELEASE_TAG%_%Build_VERSION%.zip %FILE_NAME%\*.iso -mx=6
 
-      # 上传制品到Actions（v5修复node警告）
+      # 生成Release正文
+      - name: Gen Release Body (Auto Open)
+        id: gen_body
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*" | Select-Object -ExpandProperty Name
+          $md = "<details open>`n<summary>📦 分卷压缩包（默认展开）</summary>`n`n"
+          foreach($f in $files){ $md += "- $f`n" }
+          $md += "`n</details>"
+          echo "BODY_CONTENT<<EOF" >> $env:GITHUB_ENV
+          echo $md >> $env:GITHUB_ENV
+          echo "EOF" >> $env:GITHUB_ENV
+
+      # 上传制品缓存
       - name: Upload Split Zip Artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: ISO-Split-Zip-Pack
           path: |
-            ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip
-            ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.z01
-            ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.z02
-            ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.z*
+            ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
 
-      # 发布Github Release
+      # 创建Github Release
       - name: Create Github Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.FIX_RELEASE_TAG }}
-          name: Release ${{ env.FIX_RELEASE_TAG }}
+          tag_name: ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}
+          name: Release ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}
+          body: ${{ env.BODY_CONTENT }}
           files: |
-            ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip
-            ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.z01
-            ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.z02
-            ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.z*
+            ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
+          generate_release_notes: false
+          append_body: false
 
-      # ==========新增：Rclone上传阿里云盘指定目录==========
-      - name: Install Rclone
+      # 安装aliyunpan-cli v0.3.7
+      - name: Install aliyunpan-cli(v0.3.7)
         shell: pwsh
         run: |
-          choco install rclone -y
+          $url = "https://ghfast.top/https://github.com/tickstep/aliyunpan/releases/download/v0.3.7/aliyunpan-v0.3.7-windows-x64.zip"
+          Invoke-WebRequest -Uri $url -OutFile aliyunpan.zip -UseBasicParsing -TimeoutSec 180 -SkipCertificateCheck
+          7z x aliyunpan.zip -oaliyunpan -spe -y
+          $ALI_EXE = (Get-ChildItem ./aliyunpan -Recurse -Filter "aliyunpan.exe").FullName
+          echo "ALI_EXE=$ALI_EXE" >> $env:GITHUB_ENV
 
-      - name: Rclone配置阿里云盘WebDAV
+      # 阿里云盘登录
+      - name: Login to Aliyun Drive
         shell: pwsh
         run: |
-          mkdir -Force $env:USERPROFILE\.config\rclone
-          @"
-[aliyun]
-type = webdav
-url = http://localhost:8080/dav
-vendor = other
-user = ${{ secrets.ALI_WEBDAV_USER }}
-pass = ${{ secrets.ALI_WEBDAV_PWD }}
-"@ | Out-File $env:USERPROFILE\.config\rclone\rclone.conf -Encoding utf8
+          & "$env:ALI_EXE" login --refresh-token "${{ secrets.ALI_REFRESH_TOKEN }}"
+          & "$env:ALI_EXE" whoami
 
-      - name: 启动阿里云盘WebDAV服务
+      # 阿里云盘自动建目录
+      - name: Mkdir Aliyun Remote Dir
         shell: pwsh
         run: |
-          pip install aliyundrive-webdav
-          Start-Job -ScriptBlock {aliyundrive-webdav --refresh-token ${{ secrets.ALI_REFRESH_TOKEN }} --host 127.0.0.1 --port 8080 -U ${{ secrets.ALI_WEBDAV_USER }} -W ${{ secrets.ALI_WEBDAV_PWD }} --no-trash}
-          Start-Sleep -Seconds 8 # 等待webdav启动完成
+          $remotePath="${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+          Write-Host "阿里云目标路径：$remotePath"
+          $checkRet = & "$env:ALI_EXE" ls "$remotePath" 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "目录不存在，正在创建..."
+            & "$env:ALI_EXE" mkdir -p "$remotePath"
+            Start-Sleep 2
+          }
 
-      - name: 自动创建云盘目录+上传分卷压缩包
+      # 上传阿里云盘（带重试）
+      - name: Upload to Aliyun Drive
         shell: pwsh
         run: |
-          rclone mkdir aliyun:${{ env.ALI_TARGET_DIR }}
-          rclone copy . aliyun:${{ env.ALI_TARGET_DIR }} --include "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.*" --progress
+          $remotePath="${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+          $fileList = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*"
+          foreach($f in $fileList){
+            Write-Host "上传阿里云：$($f.Name)"
+            $retry = 2
+            for($i=0;$i -le $retry;$i++){
+              & "$env:ALI_EXE" upload "$($f.FullName)" "$remotePath"
+              if($LASTEXITCODE -eq 0){ break }
+              Write-Host "上传失败，等待10s重试"
+              Start-Sleep 10
+            }
+            Start-Sleep 3
+          }
+
+      # AList上传（目标：/阿里云盘-Windows_10_11_ISO/Windows11_26H1_amd64）
+      - name: Upload to Alist
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Continue"
+          $baseUrl = "${{ env.ALIST_URL }}"
+          $user = "${{ env.ALIST_USER }}"
+          $pass = "${{ env.ALIST_PASS }}"
+          $uploadPath = "${{ env.ALIST_UPLOAD_PATH }}"
+
+          # 登录获取Token
+          $loginBody = @{username=$user;password=$pass} | ConvertTo-Json
+          $loginRes = Invoke-RestMethod -Method Post -Uri "$baseUrl/api/auth/login" -Body $loginBody -ContentType "application/json"
+          $token = $loginRes.data.token
+          $header = @{Authorization="Bearer $token"}
+
+          # 自动创建远端文件夹
+          try{
+            $mkBody = @{path=$uploadPath} | ConvertTo-Json
+            Invoke-RestMethod -Uri "$baseUrl/api/fs/mkdir" -Method Post -Headers $header -Body $mkBody -ContentType "application/json" | Out-Null
+          }catch{ Write-Host "目录已存在，跳过创建" }
+
+          # 逐个分卷上传
+          $files = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*"
+          foreach ($f in $files) {
+            Write-Host "上传Alist：$($f.Name)"
+            $fullTarget = "$uploadPath/$($f.Name)"
+            $putHeader = @{
+              "Authorization" = "Bearer $token"
+              "File-Path"     = $fullTarget
+              "Content-Type"  = "application/octet-stream"
+            }
+            Invoke-RestMethod -Uri "$baseUrl/api/fs/put" -Method Put -Headers $putHeader -InFile $f.FullName
+            Start-Sleep 3
+          }
+
+      # 清理临时文件
+      - name: Clean Workspace
+        shell: pwsh
+        run: Remove-Item ./aliyunpan,./aliyunpan.zip -Recurse -Force -ErrorAction SilentlyContinue
