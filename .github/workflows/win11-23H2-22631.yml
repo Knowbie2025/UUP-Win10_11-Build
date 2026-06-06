@@ -79,7 +79,7 @@ jobs:
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
           generate_release_notes: false
 
-      # ==========【修复拆分：安装aliyunpan，写入PATH】==========
+      # ==========安装aliyunpan，写入PATH==========
       - name: Install aliyunpan-cli(动态最新版)
         shell: pwsh
         run: |
@@ -97,26 +97,26 @@ jobs:
           echo "$aliBinDir" | Out-File -FilePath $env:GITHUB_PATH -Append
           Write-Host "aliyunpan bin path: $aliBinDir"
 
-      # 【独立步骤：PATH已刷新，验证aliyunpan版本】
+      # 验证aliyunpan版本
       - name: Check aliyunpan version
         shell: pwsh
         run: aliyunpan -v
 
-      # 登录阿里云盘 + 校验账号信息【已修复-RefreshToken空格报错，改用短参数-rt=】
+      # ✅【关键修复：-rt → -RefreshToken，新版CLI无rt短参数】
       - name: Login to Aliyun Drive
         shell: pwsh
         run: |
-          aliyunpan login -rt="${{ secrets.ALI_REFRESH_TOKEN }}"
-          # 打印登录信息，验证DriveID正常加载，排查token失效
+          aliyunpan login -RefreshToken="${{ secrets.ALI_REFRESH_TOKEN }}"
+          # 打印登录信息，校验账号
           aliyunpan who
 
-      # 关键新增：预先创建目标远端目录，加-p参数，目录已存在不报错
+      # 预先创建远端目录
       - name: Create target remote folder
         shell: pwsh
         run: |
           aliyunpan mkdir -p "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
 
-      # 改用循环逐个上传，废弃zip.*通配符（解决通配符解析panic）+ 单文件异常捕获
+      # 循环逐个上传分卷压缩包
       - name: Upload files to Aliyun Drive
         shell: pwsh
         run: |
