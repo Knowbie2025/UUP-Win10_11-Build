@@ -49,7 +49,7 @@ jobs:
       # 分卷压缩 1900M每卷
       - name: Split Compress ZIP(1.9G/part)
         shell: cmd
-        run: 7z a -tzip -v1900M %FIX_RELEASE_TAG%_%Build_VERSION%.zip %FILE_NAME%\\*.iso -mx=6
+        run: 7z a -tzip -v1900M %FIX_RELEASE_TAG%_%Build_VERSION%.zip %FILE_NAME%\*.iso -mx=6
 
       # 上传制品
       - name: Upload Split Zip Artifact
