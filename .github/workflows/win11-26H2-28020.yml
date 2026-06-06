@@ -14,7 +14,8 @@ env:
   Build_VERSION: '28020.2207'
   FILE_NAME: Windows11_26H2_amd64
   FIX_RELEASE_TAG: Windows11_26H2_amd64
-  ALI_YUN_DRIVE_UPLOAD_PATH: /Windows_10_11_ISO/Windows11_26H2_amd64
+  # ✅ 关键修复：阿里云盘路径 去掉最前面的 /
+  ALI_YUN_DRIVE_UPLOAD_PATH: Windows_10_11_ISO/Windows11_26H2_amd64
 
 jobs:
   Build_UUP:
@@ -43,12 +44,12 @@ jobs:
         shell: pwsh
         run: |
           choco install 7zip -y
-          echo "${env:ProgramFiles}\7-Zip" | Out-File -FilePath $env:GITHUB_PATH -Append
+          echo "${env:ProgramFiles}\\7-Zip" | Out-File -FilePath $env:GITHUB_PATH -Append
 
       # 分卷压缩 1900M每卷
       - name: Split Compress ZIP(1.9G/part)
         shell: cmd
-        run: 7z a -tzip -v1900M %FIX_RELEASE_TAG%_%Build_VERSION%.zip %FILE_NAME%\*.iso -mx=6
+        run: 7z a -tzip -v1900M %FIX_RELEASE_TAG%_%Build_VERSION%.zip %FILE_NAME%\\*.iso -mx=6
 
       # 上传制品
       - name: Upload Split Zip Artifact
@@ -69,56 +70,58 @@ jobs:
           generate_release_notes: false
           append_body: false
 
-      # ==========关键1：固定v0.3.7稳定版，抛弃最新BUG版==========
-      - name: Install aliyunpan-cli(v0.3.7稳定无崩溃版)
+      # 安装 aliyunpan-cli(v0.3.7稳定无崩溃版)
+      - name: Install aliyunpan-cli(v0.3.7)
         shell: pwsh
         run: |
           $url = "https://ghfast.top/https://github.com/tickstep/aliyunpan/releases/download/v0.3.7/aliyunpan-v0.3.7-windows-x64.zip"
-          Write-Host "Download fixed v0.3.7 aliyunpan: $url"
           Invoke-WebRequest -Uri $url -OutFile aliyunpan.zip -UseBasicParsing -TimeoutSec 180 -SkipCertificateCheck
           7z x aliyunpan.zip -oaliyunpan -spe -y
-          Get-ChildItem ./aliyunpan -Recurse
           $ALI_EXE = (Get-ChildItem ./aliyunpan -Recurse -Filter "aliyunpan.exe").FullName
-          if(-not $ALI_EXE){
-            Write-Error "aliyunpan.exe 未找到！"
-            exit 1
-          }
           echo "ALI_EXE=$ALI_EXE" >> $env:GITHUB_ENV
-          Write-Host "Aliyunpan路径: $ALI_EXE"
 
-      # 登录阿里云盘（v0.3.7支持--RefreshToken参数）
+      # 登录阿里云盘
       - name: Login to Aliyun Drive
         shell: pwsh
         run: |
           & "$env:ALI_EXE" login -RefreshToken "${{ secrets.ALI_REFRESH_TOKEN }}"
           & "$env:ALI_EXE" whoami
 
-      # 判断创建远端目录
+      # ✅ 修复：自动创建目录 + 日志可见
       - name: Mkdir Aliyun Remote Dir
         shell: pwsh
         run: |
           $remotePath="${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+          Write-Host "目标路径：$remotePath"
           $checkRet = & "$env:ALI_EXE" ls "$remotePath" 2>&1
           if ($LASTEXITCODE -ne 0) {
-            Write-Host "目录不存在，创建远端目录：$remotePath"
+            Write-Host "目录不存在，正在创建..."
             & "$env:ALI_EXE" mkdir "$remotePath"
-          } else {
-            Write-Host "远端目录已存在，跳过创建"
-            Write-Host "目录内容:"
-            & "$env:ALI_EXE" ls "$remotePath"
+            Start-Sleep 2
           }
+          & "$env:ALI_EXE" ls "$remotePath"
 
-      # ==========关键2：u命令→upload命令，修复nil指针崩溃BUG==========
+      # ✅ 修复：稳定上传 + 日志 + 重试
       - name: Upload files to Aliyun Drive
         shell: pwsh
         run: |
+          $remotePath="${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
           $fileList = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*"
           foreach($f in $fileList){
-            Write-Host "正在上传：$($f.Name)"
-            # v0.3.7标准正确上传指令：upload 本地文件 远端目录
-            & "$env:ALI_EXE" upload "$($f.FullName)" "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
-            Write-Host "$($f.Name) 上传完毕，退出码:$LASTEXITCODE"
-            Start-Sleep -Seconds 4
+            Write-Host "`n正在上传：$($f.Name)"
+            $retry = 2
+            for($i=0;$i -le $retry;$i++){
+              & "$env:ALI_EXE" upload "$($f.FullName)" "$remotePath"
+              if($LASTEXITCODE -eq 0){ break }
+              Write-Host "上传失败，重试中..."
+              Start-Sleep 10
+            }
+            Start-Sleep 5
           }
-          Write-Host "全部上传完成，列出网盘目录校验："
-          & "$env:ALI_EXE" ls "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+          Write-Host "`n上传完成，校验目录："
+          & "$env:ALI_EXE" ls "$remotePath"
+
+      # 清理临时文件
+      - name: Clean Workspace
+        shell: pwsh
+        run: Remove-Item ./aliyunpan,./aliyunpan.zip -Recurse -Force -ErrorAction SilentlyContinue
