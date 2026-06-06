@@ -5,7 +5,6 @@ on:
   push:
     branches: [ main ]
     paths:
-      # 仅匹配文件名含23H2的yml，修改其它yml不会触发本任务。
       - '.github/workflows/win11-23H2-22631.yml'
 
 permissions:
@@ -15,8 +14,7 @@ env:
   Build_VERSION: '22631.7079'
   FILE_NAME: Windows11_23H2_amd64
   FIX_RELEASE_TAG: Windows11_23H2_amd64
-  # 阿里云盘上传目标目录
-  ALI_YUN_DRIVE_UPLOAD_PATH: /Windows_10_11_ISO/Windows11_23H2_amd64/
+  ALI_YUN_DRIVE_UPLOAD_PATH: /Windows_10_11_ISO/Windows11_23H2_amd64
 
 jobs:
   Build_UUP:
@@ -25,7 +23,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      # 自动获取aliyunpan最新Release标签，写入环境变量latest_ver
+      # 获取aliyunpan最新版本
       - name: Get latest aliyunpan version
         id: get_ali_ver
         shell: pwsh
@@ -56,12 +54,12 @@ jobs:
           choco install 7zip -y
           echo "${env:ProgramFiles}\7-Zip" | Out-File -FilePath $env:GITHUB_PATH -Append
 
-      # 1.9G分卷ZIP
+      # 1.9G分卷压缩
       - name: Split Compress ZIP(1.9G/part)
         shell: cmd
         run: 7z a -tzip -v1900M %FIX_RELEASE_TAG%_%Build_VERSION%.zip %FILE_NAME%\*.iso -mx=6
 
-      # 上传制品【v5→v6】
+      # 上传制品
       - name: Upload Split Zip Artifact
         uses: actions/upload-artifact@v6
         with:
@@ -69,7 +67,7 @@ jobs:
           path: |
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
 
-      # Github发布Release（关闭自动源码包）
+      # 创建Release
       - name: Create Github Release
         uses: softprops/action-gh-release@v2
         with:
@@ -79,7 +77,7 @@ jobs:
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
           generate_release_notes: false
 
-      # ==========安装aliyunpan，写入PATH==========
+      # 安装最新aliyunpan
       - name: Install aliyunpan-cli(动态最新版)
         shell: pwsh
         run: |
@@ -88,34 +86,37 @@ jobs:
           $downUrl = "https://ghfast.top/$rawUrl"
           Write-Host "Download aliyunpan -> $downUrl"
           Invoke-WebRequest -Uri $downUrl -OutFile aliyunpan.zip -UseBasicParsing -TimeoutSec 120
-          # 解压压缩包
           7z x aliyunpan.zip -oaliyunpan >$null
-          # 查找exe所在真实目录
           $aliExePath = Get-ChildItem -Path ./aliyunpan -Recurse -Filter aliyunpan.exe | Select-Object -First 1
           $aliBinDir = Split-Path $aliExePath.FullName -Parent
-          # 把exe所在真实目录写入GITHUB_PATH（后续所有步骤生效）
           echo "$aliBinDir" | Out-File -FilePath $env:GITHUB_PATH -Append
           Write-Host "aliyunpan bin path: $aliBinDir"
 
-      # 验证aliyunpan版本
       - name: Check aliyunpan version
         shell: pwsh
         run: aliyunpan -v
 
-      # ✅【最终修复：使用官方双横线小写参数 --refresh-token】
-      - name: Login to Aliyun Drive
+      # ==========核心修复：写入配置文件实现免密登录，抛弃--refresh-token参数==========
+      - name: Login to Aliyun Drive(写入配置文件)
         shell: pwsh
         run: |
-          aliyunpan login --refresh-token="${{ secrets.ALI_REFRESH_TOKEN }}"
-          aliyunpan who
+          # 新版配置目录：$HOME\.aliyunpan
+          $confPath = "$HOME\.aliyunpan"
+          New-Item -ItemType Directory -Path $confPath -Force | Out-Null
+          # 生成token配置文件
+          @"
+refresh_token=${{ secrets.ALI_REFRESH_TOKEN }}
+"@ | Out-File "$confPath\user.token" -Encoding utf8
+          # 验证登录状态
+          aliyunpan whoami
 
-      # 预先创建远端目录
+      # 创建远端目录
       - name: Create target remote folder
         shell: pwsh
         run: |
           aliyunpan mkdir -p "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
 
-      # 循环逐个上传分卷压缩包
+      # 逐个上传文件
       - name: Upload files to Aliyun Drive
         shell: pwsh
         run: |
@@ -126,6 +127,6 @@ jobs:
                   aliyunpan u $file.FullName "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
                   Write-Host "$($file.Name) 上传完成"
               } catch {
-                  Write-Warning "$($file.Name) 上传发生异常，跳过当前文件继续后续任务"
+                  Write-Warning "$($file.Name) 上传异常，跳过"
               }
           }
