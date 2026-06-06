@@ -23,15 +23,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      # ===== 自动获取 aliyunpan 最新版本号 =====
-      - name: Get latest aliyunpan release tag
-        id: get_ali_ver
-        shell: pwsh
-        run: |
-          $res = Invoke-RestMethod -Uri "https://api.github.com/repos/tickstep/aliyunpan/releases/latest"
-          $latest_tag = $res.tag_name
-          echo "latest_ver=$latest_tag" >> $env:GITHUB_ENV
-
       # UUP 打包 ISO
       - name: UUP dump build ISO
         shell: cmd
@@ -67,7 +58,7 @@ jobs:
           path: |
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
 
-      # 发布 Release（彻底关闭源码包）
+      # 发布 Release
       - name: Create Github Release
         uses: softprops/action-gh-release@v2
         with:
@@ -78,13 +69,12 @@ jobs:
           generate_release_notes: false
           append_body: false
 
-      # 下载解压 aliyunpan【关键修复：递归查找exe，兼容内嵌版本文件夹】
-      - name: Install aliyunpan-cli(自动最新版)
+      # ==========关键1：固定v0.3.7稳定版，抛弃最新BUG版==========
+      - name: Install aliyunpan-cli(v0.3.7稳定无崩溃版)
         shell: pwsh
         run: |
-          $ver = $env:latest_ver
-          $url = "https://ghfast.top/https://github.com/tickstep/aliyunpan/releases/download/$ver/aliyunpan-$ver-windows-x64.zip"
-          Write-Host "Download aliyunpan: $url"
+          $url = "https://ghfast.top/https://github.com/tickstep/aliyunpan/releases/download/v0.3.7/aliyunpan-v0.3.7-windows-x64.zip"
+          Write-Host "Download fixed v0.3.7 aliyunpan: $url"
           Invoke-WebRequest -Uri $url -OutFile aliyunpan.zip -UseBasicParsing -TimeoutSec 180 -SkipCertificateCheck
           7z x aliyunpan.zip -oaliyunpan -spe -y
           Get-ChildItem ./aliyunpan -Recurse
@@ -96,13 +86,14 @@ jobs:
           echo "ALI_EXE=$ALI_EXE" >> $env:GITHUB_ENV
           Write-Host "Aliyunpan路径: $ALI_EXE"
 
-      # 登录阿里云盘
+      # 登录阿里云盘（v0.3.7支持--RefreshToken参数）
       - name: Login to Aliyun Drive
         shell: pwsh
         run: |
           & "$env:ALI_EXE" login -RefreshToken "${{ secrets.ALI_REFRESH_TOKEN }}"
+          & "$env:ALI_EXE" whoami
 
-      # =========修复1：先判断目录是否存在，不存在才创建，规避已存在目录mkdir触发panic=========
+      # 判断创建远端目录
       - name: Mkdir Aliyun Remote Dir
         shell: pwsh
         run: |
@@ -117,14 +108,17 @@ jobs:
             & "$env:ALI_EXE" ls "$remotePath"
           }
 
-      # 【重点修改：删除错误sync，改用u命令 + 自带--retry重试，单文件上传】
+      # ==========关键2：u命令→upload命令，修复nil指针崩溃BUG==========
       - name: Upload files to Aliyun Drive
         shell: pwsh
         run: |
           $fileList = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*"
           foreach($f in $fileList){
             Write-Host "正在上传：$($f.Name)"
-            # u 本地文件 远端目录，--retry 3 失败自动重试3次
-            & "$env:ALI_EXE" u "$($f.FullName)" "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}" --retry 3
-            Start-Sleep -Seconds 3
+            # v0.3.7标准正确上传指令：upload 本地文件 远端目录
+            & "$env:ALI_EXE" upload "$($f.FullName)" "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+            Write-Host "$($f.Name) 上传完毕，退出码:$LASTEXITCODE"
+            Start-Sleep -Seconds 4
           }
+          Write-Host "全部上传完成，列出网盘目录校验："
+          & "$env:ALI_EXE" ls "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
