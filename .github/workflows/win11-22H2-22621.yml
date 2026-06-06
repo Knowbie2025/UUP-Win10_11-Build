@@ -69,14 +69,13 @@ jobs:
           generate_release_notes: false
           append_body: false
 
-      # aliyunpan安装：自动查找exe，解决压缩包内层嵌套文件夹
+      # ==========修复1：升级aliyunpan到无BUG稳定版v0.4.2（抛弃坏的v0.3.9）==========
       - name: Install aliyunpan-cli
         shell: pwsh
         run: |
-          $url = "https://ghfast.top/https://github.com/tickstep/aliyunpan/releases/download/v0.3.9/aliyunpan-v0.3.9-windows-x64.zip"
+          $url = "https://ghfast.top/https://github.com/tickstep/aliyunpan/releases/download/v0.4.2/aliyunpan-v0.4.2-windows-x64.zip"
           Invoke-WebRequest -Uri $url -OutFile aliyunpan.zip -UseBasicParsing -TimeoutSec 180 -SkipCertificateCheck
           7z x aliyunpan.zip -oaliyunpan -spe -y
-          # 递归搜索exe真实全路径，兼容压缩包自带版本文件夹
           $ALI_EXE = (Get-ChildItem ./aliyunpan -Recurse -Filter "aliyunpan.exe").FullName
           if(-not (Test-Path $ALI_EXE)){
             Write-Error "aliyunpan.exe不存在，终止任务"
@@ -85,25 +84,35 @@ jobs:
           echo "ALI_EXE=$ALI_EXE" >> $env:GITHUB_ENV
           Write-Host "客户端完整路径：$ALI_EXE"
 
-      # 登录阿里云盘（用环境变量全路径，引号防空格报错）
+      # 登录阿里云盘
       - name: Login to Aliyun Drive
         shell: pwsh
         run: |
           & "$env:ALI_EXE" login -RefreshToken "${{ secrets.ALI_REFRESH_TOKEN }}"
 
-      # 提前创建远端目录，避免目录不存在上传报错
+      # ==========修复2：先判断远端目录是否存在，不存在才创建，避免mkdir已存在触发panic==========
       - name: Mkdir Remote Folder
         shell: pwsh
         run: |
-          & "$env:ALI_EXE" mkdir "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+          $remotePath="${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+          # 查看目录是否存在
+          $check = & "$env:ALI_EXE" ls $remotePath 2>&1
+          if($LASTEXITCODE -ne 0){
+            Write-Host "目录不存在，执行创建：$remotePath"
+            & "$env:ALI_EXE" mkdir "$remotePath"
+          }else{
+            Write-Host "远端目录已存在，跳过mkdir"
+          }
 
-      # 遍历批量上传分卷，单文件延时防限流崩溃
+      # ==========修复3：改用【sync同步命令替代u上传】，sync容错远高于u，规避u命令空指针BUG==========
+      # ==========修复4：延长单文件间隔到3秒，阿里云盘限流极易造成cli内存崩溃==========
       - name: Upload files to Aliyun Drive
         shell: pwsh
         run: |
           $files = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*"
           foreach ($f in $files) {
             Write-Host "正在上传：$($f.Name)"
-            & "$env:ALI_EXE" u "$($f.FullName)" "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
-            Start-Sleep -Milliseconds 1200
+            # sync 本地文件 远端目录，自动跳过已存在文件，不会空指针崩溃
+            & "$env:ALI_EXE" sync --upload "$($f.FullName)" "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+            Start-Sleep -Seconds 3
           }
