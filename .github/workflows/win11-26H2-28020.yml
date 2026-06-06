@@ -87,9 +87,7 @@ jobs:
           Write-Host "Download aliyunpan: $url"
           Invoke-WebRequest -Uri $url -OutFile aliyunpan.zip -UseBasicParsing -TimeoutSec 180 -SkipCertificateCheck
           7z x aliyunpan.zip -oaliyunpan -spe -y
-          # 打印目录用于排错
           Get-ChildItem ./aliyunpan -Recurse
-          # 全局递归搜索exe，解决压缩包内置版本目录
           $ALI_EXE = (Get-ChildItem ./aliyunpan -Recurse -Filter "aliyunpan.exe").FullName
           if(-not $ALI_EXE){
             Write-Error "aliyunpan.exe 未找到！"
@@ -104,19 +102,28 @@ jobs:
         run: |
           & "$env:ALI_EXE" login -RefreshToken "${{ secrets.ALI_REFRESH_TOKEN }}"
 
-      # 提前创建远端目录
+      # =========修复1：先判断目录是否存在，不存在才创建，规避已存在目录mkdir触发panic=========
       - name: Mkdir Aliyun Remote Dir
         shell: pwsh
         run: |
-          & "$env:ALI_EXE" mkdir "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+          $remotePath="${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+          $checkRet = & "$env:ALI_EXE" ls "$remotePath" 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "目录不存在，创建远端目录：$remotePath"
+            & "$env:ALI_EXE" mkdir "$remotePath"
+          } else {
+            Write-Host "远端目录已存在，跳过创建"
+          }
 
-      # 上传分卷压缩包（防panic、单文件延时）
+      # =========修复2：u命令替换为 sync --upload（官方同步命令，无空指针BUG，自动跳过重复文件）=========
+      # =========修复3：休眠1500ms → 3000ms(3秒)，降低接口调用频率防限流崩溃=========
       - name: Upload files to Aliyun Drive
         shell: pwsh
         run: |
           $fileList = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*"
           foreach($f in $fileList){
             Write-Host "Start upload: $($f.FullName)"
-            & "$env:ALI_EXE" u "$($f.FullName)" "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}/"
-            Start-Sleep -Milliseconds 1500
+            # sync上传替代u，自带异常容错、文件去重
+            & "$env:ALI_EXE" sync --upload "$($f.FullName)" "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}/"
+            Start-Sleep -Seconds 3
           }
