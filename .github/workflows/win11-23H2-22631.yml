@@ -59,6 +59,21 @@ jobs:
         shell: cmd
         run: 7z a -tzip -v1900M %FIX_RELEASE_TAG%_%Build_VERSION%.zip %FILE_NAME%\*.iso -mx=6
 
+      # =====新增：生成默认展开的附件清单内容，存入环境变量=====
+      - name: Gen Release Body List
+        id: gen_body
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*" | Select-Object -ExpandProperty Name
+          $md = "<details open>`n<summary>📦 分卷压缩包（默认展开）</summary>`n`n"
+          foreach($f in $files){
+            $md += "- $f`n"
+          }
+          $md += "`n</details>`n`n> 下方Assets为Github原生自带附件（无法默认展开）"
+          echo "BODY_CONTENT<<EOF" >> $env:GITHUB_ENV
+          echo $md >> $env:GITHUB_ENV
+          echo "EOF" >> $env:GITHUB_ENV
+
       # 构建物临时保存
       - name: Upload Split Zip Artifact
         uses: actions/upload-artifact@v6
@@ -67,12 +82,13 @@ jobs:
           path: |
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
 
-      # Github Release发布
+      # Github Release发布【body改用生成好的默认展开内容】
       - name: Create Github Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}
           name: Release ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}
+          body: ${{ env.BODY_CONTENT }}
           files: |
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
           generate_release_notes: false
