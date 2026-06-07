@@ -86,21 +86,21 @@ jobs:
           generate_release_notes: false
           append_body: false
 
-      # 安装 aliyunpan-cli v0.3.7
-      - name: Install aliyunpan-cli(v0.3.7)
+      # 安装 aliyunpan-cli v0.3.9 ✅ 已升级
+      - name: Install aliyunpan-cli(v0.3.9)
         shell: pwsh
         run: |
-          $url = "https://ghfast.top/https://github.com/tickstep/aliyunpan/releases/download/v0.3.7/aliyunpan-v0.3.7-windows-x64.zip"
+          $url = "https://ghfast.top/https://github.com/tickstep/aliyunpan/releases/download/v0.3.9/aliyunpan-v0.3.9-windows-amd64.zip"
           Invoke-WebRequest -Uri $url -OutFile aliyunpan.zip -UseBasicParsing -TimeoutSec 180 -SkipCertificateCheck
           7z x aliyunpan.zip -oaliyunpan -spe -y
           $ALI_EXE = (Get-ChildItem ./aliyunpan -Recurse -Filter "aliyunpan.exe").FullName
           echo "ALI_EXE=$ALI_EXE" >> $env:GITHUB_ENV
 
-      # 阿里云盘 - Refresh Token 登录（精简稳定版，不再手动写配置文件）
+      # 阿里云盘 - Refresh Token 登录 ✅ 适配 0.3.9
       - name: Login to Aliyun Drive
         shell: pwsh
         run: |
-          & "$env:ALI_EXE" token set -t "${{ secrets.ALI_REFRESH_TOKEN }}"
+          & "$env:ALI_EXE" token set -RefreshToken "${{ secrets.ALI_REFRESH_TOKEN }}"
           & "$env:ALI_EXE" whoami
 
       # 阿里云盘自动建目录
