@@ -26,7 +26,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      # UUP编译打包ISO
+      # UUP 编译打包 ISO
       - name: UUP dump build ISO
         shell: cmd
         run: |
@@ -41,19 +41,19 @@ jobs:
           dir *.iso
           cd ..
 
-      # 安装7zip
+      # 安装 7zip
       - name: Install 7-Zip via Powershell
         shell: pwsh
         run: |
           choco install 7zip -y
           echo "${env:ProgramFiles}\\7-Zip" | Out-File -FilePath $env:GITHUB_PATH -Append
 
-      # 1900M分卷压缩
+      # 1900M 分卷压缩
       - name: Split Compress ZIP(1.9G/part)
         shell: cmd
         run: 7z a -tzip -v1900M %FIX_RELEASE_TAG%_%Build_VERSION%.zip %FILE_NAME%\*.iso -mx=6
 
-      # 生成Release正文（<details open>默认展开清单）
+      # 生成 Release 正文
       - name: Gen Release Body (Auto Open)
         id: gen_body
         shell: pwsh
@@ -74,7 +74,7 @@ jobs:
           path: |
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
 
-      # 创建Github Release
+      # 创建 Github Release
       - name: Create Github Release
         uses: softprops/action-gh-release@v2
         with:
@@ -86,7 +86,7 @@ jobs:
           generate_release_notes: false
           append_body: false
 
-      # 安装aliyunpan-cli v0.3.7
+      # 安装 aliyunpan-cli v0.3.7
       - name: Install aliyunpan-cli(v0.3.7)
         shell: pwsh
         run: |
@@ -96,17 +96,11 @@ jobs:
           $ALI_EXE = (Get-ChildItem ./aliyunpan -Recurse -Filter "aliyunpan.exe").FullName
           echo "ALI_EXE=$ALI_EXE" >> $env:GITHUB_ENV
 
-      # 阿里云盘登录【修复：用单行JSON写入，避开多行字符串YAML解析错误】
+      # 阿里云盘 - Refresh Token 登录（精简稳定版，不再手动写配置文件）
       - name: Login to Aliyun Drive
         shell: pwsh
         run: |
-          # 写入配置文件
-          $configDir = "$env:APPDATA\aliyunpan"
-          New-Item -ItemType Directory -Path $configDir -Force | Out-Null
-          $json = '{"refresh_token":"' + "${{ secrets.ALI_REFRESH_TOKEN }}" + '"}'
-          $json | Out-File -FilePath "$configDir\config.json" -Encoding utf8
-          # 执行登录
-          & "$env:ALI_EXE" login
+          & "$env:ALI_EXE" token set -t "${{ secrets.ALI_REFRESH_TOKEN }}"
           & "$env:ALI_EXE" whoami
 
       # 阿里云盘自动建目录
@@ -122,28 +116,26 @@ jobs:
             Start-Sleep 2
           }
 
-      # 阿里云盘上传
+      # 阿里云盘分卷上传（带重试）
       - name: Upload to Aliyun Drive
         shell: pwsh
         run: |
           $remotePath="${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
           $fileList = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*"
-          # 切换到目标远程目录，省略第二个远端路径参数
           & "$env:ALI_EXE" cd "$remotePath"
           foreach($f in $fileList){
-            Write-Host "上传阿里云：$($f.Name)"
+            Write-Host "开始上传阿里云：$($f.Name)"
             $retry = 2
             for($i=0;$i -le $retry;$i++){
-              # 只写本地文件，不再传远端路径！
               & "$env:ALI_EXE" upload "$($f.FullName)"
               if($LASTEXITCODE -eq 0){ break }
-              Write-Host "上传失败，等待10s重试"
+              Write-Host "上传失败，等待10s重试，剩余重试次数：$($retry - $i)"
               Start-Sleep 10
             }
             Start-Sleep 3
           }
 
-      # AList上传
+      # Alist 上传
       - name: Upload to Alist
         shell: pwsh
         run: |
@@ -165,10 +157,10 @@ jobs:
             Invoke-RestMethod -Uri "$baseUrl/api/fs/mkdir" -Method Post -Headers $header -Body $mkBody -ContentType "application/json" | Out-Null
           }catch{ Write-Host "目录已存在，跳过创建" }
 
-          # 逐个分卷二进制流式上传
+          # 逐个分卷流式上传
           $files = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*"
           foreach ($f in $files) {
-            Write-Host "上传Alist：$($f.Name)"
+            Write-Host "开始上传Alist：$($f.Name)"
             $fullTarget = "$uploadPath/$($f.Name)"
             $putHeader = @{
               "Authorization" = "Bearer $token"
