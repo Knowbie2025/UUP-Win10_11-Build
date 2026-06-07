@@ -15,7 +15,6 @@ env:
   FILE_NAME: Windows11_26H1_amd64
   FIX_RELEASE_TAG: Windows11_26H1_amd64
   ALI_YUN_DRIVE_UPLOAD_PATH: Windows_10_11_ISO/Windows11_26H1_amd64
-  # Secrets统一从仓库密钥读取，顶层不做路径拼接
   ALIST_URL: ${{ secrets.ALIST_DOMAIN }}
   ALIST_USER: ${{ secrets.ALIST_USER }}
   ALIST_PASS: ${{ secrets.ALIST_PWD }}
@@ -60,7 +59,7 @@ jobs:
         shell: pwsh
         run: |
           $files = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*" | Select-Object -ExpandProperty Name
-          $md = "<details open>`n<summary>📦 分卷压缩包（默认展开）</summary>`n`n"
+          $md = "<details open>`n<summary>📦 各分卷压缩包名（下载至同一文件夹后解压即可）</summary>`n`n"
           foreach($f in $files){ $md += "- $f`n" }
           $md += "`n</details>"
           echo "BODY_CONTENT<<EOF" >> $env:GITHUB_ENV
@@ -87,7 +86,7 @@ jobs:
           generate_release_notes: false
           append_body: false
 
-      # 安装aliyunpan-cli v0.3.7【修复残缺下载链接】
+      # 安装aliyunpan-cli v0.3.7
       - name: Install aliyunpan-cli(v0.3.7)
         shell: pwsh
         run: |
@@ -97,11 +96,20 @@ jobs:
           $ALI_EXE = (Get-ChildItem ./aliyunpan -Recurse -Filter "aliyunpan.exe").FullName
           echo "ALI_EXE=$ALI_EXE" >> $env:GITHUB_ENV
 
-      # 阿里云盘登录
+      # 阿里云盘登录【修复：改用环境变量传入RefreshToken】
       - name: Login to Aliyun Drive
         shell: pwsh
         run: |
-          & "$env:ALI_EXE" login --refresh-token "${{ secrets.ALI_REFRESH_TOKEN }}"
+          # 写入配置文件，替代不支持的--refresh-token参数
+          $configDir = "$env:APPDATA\aliyunpan"
+          New-Item -ItemType Directory -Path $configDir -Force | Out-Null
+          @"
+{
+  "refresh_token": "${{ secrets.ALI_REFRESH_TOKEN }}"
+}
+"@ | Out-File -FilePath "$configDir\config.json" -Encoding utf8
+          # 直接执行login命令完成登录
+          & "$env:ALI_EXE" login
           & "$env:ALI_EXE" whoami
 
       # 阿里云盘自动建目录
@@ -117,7 +125,7 @@ jobs:
             Start-Sleep 2
           }
 
-      # ✅【修复上传逻辑：先cd远程目录，单参数上传，彻底解决空指针panic】
+      # 阿里云盘上传
       - name: Upload to Aliyun Drive
         shell: pwsh
         run: |
@@ -138,7 +146,7 @@ jobs:
             Start-Sleep 3
           }
 
-      # AList上传【路径在脚本内动态拼接，规避顶层env表达式报错】
+      # AList上传
       - name: Upload to Alist
         shell: pwsh
         run: |
@@ -146,7 +154,6 @@ jobs:
           $baseUrl = "${{ env.ALIST_URL }}"
           $user = "${{ env.ALIST_USER }}"
           $pass = "${{ env.ALIST_PASS }}"
-          # 步骤内动态拼接路径
           $uploadPath = "/阿里云盘-Windows_10_11_ISO/${{ env.FIX_RELEASE_TAG }}"
 
           # 登录获取Token
