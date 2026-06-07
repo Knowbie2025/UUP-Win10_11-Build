@@ -96,19 +96,16 @@ jobs:
           $ALI_EXE = (Get-ChildItem ./aliyunpan -Recurse -Filter "aliyunpan.exe").FullName
           echo "ALI_EXE=$ALI_EXE" >> $env:GITHUB_ENV
 
-      # 阿里云盘登录【修复：改用环境变量传入RefreshToken】
+      # 阿里云盘登录【修复：用单行JSON写入，避开多行字符串YAML解析错误】
       - name: Login to Aliyun Drive
         shell: pwsh
         run: |
-          # 写入配置文件，替代不支持的--refresh-token参数
+          # 写入配置文件
           $configDir = "$env:APPDATA\aliyunpan"
           New-Item -ItemType Directory -Path $configDir -Force | Out-Null
-          @"
-{
-  "refresh_token": "${{ secrets.ALI_REFRESH_TOKEN }}"
-}
-"@ | Out-File -FilePath "$configDir\config.json" -Encoding utf8
-          # 直接执行login命令完成登录
+          $json = '{"refresh_token":"' + "${{ secrets.ALI_REFRESH_TOKEN }}" + '"}'
+          $json | Out-File -FilePath "$configDir\config.json" -Encoding utf8
+          # 执行登录
           & "$env:ALI_EXE" login
           & "$env:ALI_EXE" whoami
 
