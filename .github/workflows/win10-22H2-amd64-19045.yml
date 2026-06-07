@@ -5,7 +5,7 @@ on:
   push:
     branches: [ main ]
     paths:
-      - '.github/workflows/win11-22H2-amd64-19045.yml'
+      - '.github/workflows/win10-22H2-amd64-19045.yml'
 
 permissions:
   contents: write
