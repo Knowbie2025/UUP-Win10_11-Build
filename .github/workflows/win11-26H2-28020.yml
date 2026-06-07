@@ -86,7 +86,7 @@ jobs:
           generate_release_notes: false
           append_body: false
 
-      # 安装 aliyunpan-cli v0.3.9 【修复路径带空格变量问题】
+      # 安装 aliyunpan-cli v0.3.9（无引号污染）
       - name: Install aliyunpan-cli(v0.3.9)
         shell: pwsh
         run: |
@@ -94,16 +94,17 @@ jobs:
           Invoke-WebRequest -Uri $url -OutFile aliyunpan.zip -UseBasicParsing -TimeoutSec 180 -SkipCertificateCheck
           7z x aliyunpan.zip -oaliyunpan -spe -y
           $ALI_EXE = (Get-ChildItem ./aliyunpan -Recurse -Filter "aliyunpan.exe").FullName
-          echo "ALI_EXE=`"$ALI_EXE`"" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          echo "ALI_EXE=$ALI_EXE" >> $env:GITHUB_ENV
 
-      # 阿里云盘登录 【增加路径校验、调试输出】
+      # 阿里云盘登录 + 路径校验
       - name: Login to Aliyun Drive
         shell: pwsh
         run: |
           $ALI_EXE = $env:ALI_EXE
-          Write-Host "aliyunpan 路径: $ALI_EXE"
+          Write-Host "aliyunpan 实际路径: $ALI_EXE"
           if (-not (Test-Path $ALI_EXE)) {
-            Write-Error "错误：aliyunpan.exe 未找到"
+            Write-Error "aliyunpan.exe 未找到！"
+            dir ./aliyunpan -Recurse
             exit 1
           }
           & $ALI_EXE token set -RefreshToken "${{ secrets.ALI_REFRESH_TOKEN }}"
@@ -113,12 +114,13 @@ jobs:
       - name: Mkdir Aliyun Remote Dir
         shell: pwsh
         run: |
-          $remotePath="${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
-          Write-Host "阿里云目标路径：$remotePath"
-          $checkRet = & $env:ALI_EXE ls "$remotePath" 2>&1
+          $ALI_EXE = $env:ALI_EXE
+          $remotePath = "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+          Write-Host "阿里云目标路径: $remotePath"
+          & $ALI_EXE ls "$remotePath" 2>&1
           if ($LASTEXITCODE -ne 0) {
-            Write-Host "目录不存在，正在创建..."
-            & $env:ALI_EXE mkdir -p "$remotePath"
+            Write-Host "目录不存在，开始创建"
+            & $ALI_EXE mkdir -p "$remotePath"
             Start-Sleep 2
           }
 
@@ -126,16 +128,17 @@ jobs:
       - name: Upload to Aliyun Drive
         shell: pwsh
         run: |
-          $remotePath="${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+          $ALI_EXE = $env:ALI_EXE
+          $remotePath = "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
           $fileList = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*"
-          & $env:ALI_EXE cd "$remotePath"
+          & $ALI_EXE cd "$remotePath"
           foreach($f in $fileList){
-            Write-Host "开始上传阿里云：$($f.Name)"
+            Write-Host "正在上传: $($f.Name)"
             $retry = 2
             for($i=0;$i -le $retry;$i++){
-              & $env:ALI_EXE upload "$($f.FullName)"
+              & $ALI_EXE upload "$($f.FullName)"
               if($LASTEXITCODE -eq 0){ break }
-              Write-Host "上传失败，等待10s重试，剩余重试次数：$($retry - $i)"
+              Write-Host "上传失败，10秒后重试"
               Start-Sleep 10
             }
             Start-Sleep 3
