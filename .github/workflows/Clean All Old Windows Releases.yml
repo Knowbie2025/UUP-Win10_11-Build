@@ -1,0 +1,165 @@
+name: Clean All Old Windows Releases
+
+on:
+  release:
+    types: [published]  # 每次发布新版本后自动清理
+  schedule:
+    - cron: '0 0 * * 0'  # 每周日 0 点自动清理（可选）
+  workflow_dispatch:     # 允许手动触发，方便调试
+
+jobs:
+  # ===== Windows 10 系列 =====
+  clean-win10-22h2-amd64:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clean Windows10_22H2_amd64 releases (keep latest 3)
+        uses: dev-drprasad/delete-older-releases@v0.3.2
+        with:
+          repo: ${{ github.repository }}
+          keep_latest: 3
+          regex_pattern: 'Windows10_22H2_amd64.*'
+          delete_tags: true
+          delete_older_than: 0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  clean-win10-22h2-arm64:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clean Windows10_22H2_arm64 releases (keep latest 3)
+        uses: dev-drprasad/delete-older-releases@v0.3.2
+        with:
+          repo: ${{ github.repository }}
+          keep_latest: 3
+          regex_pattern: 'Windows10_22H2_arm64.*'
+          delete_tags: true
+          delete_older_than: 0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  clean-win10-22h2-x86:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clean Windows10_22H2_x86 releases (keep latest 3)
+        uses: dev-drprasad/delete-older-releases@v0.3.2
+        with:
+          repo: ${{ github.repository }}
+          keep_latest: 3
+          regex_pattern: 'Windows10_22H2_x86.*'
+          delete_tags: true
+          delete_older_than: 0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  clean-win10-v1809-amd64:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clean Windows10_v1809_amd64 releases (keep latest 3)
+        uses: dev-drprasad/delete-older-releases@v0.3.2
+        with:
+          repo: ${{ github.repository }}
+          keep_latest: 3
+          regex_pattern: 'Windows10_v1809_amd64.*'
+          delete_tags: true
+          delete_older_than: 0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  clean-win10-v1809-x86:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clean Windows10_v1809_x86 releases (keep latest 3)
+        uses: dev-drprasad/delete-older-releases@v0.3.2
+        with:
+          repo: ${{ github.repository }}
+          keep_latest: 3
+          regex_pattern: 'Windows10_v1809_x86.*'
+          delete_tags: true
+          delete_older_than: 0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ===== Windows 11 系列 =====
+  clean-win11-22h2-amd64:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clean Windows11_22H2_amd64 releases (keep latest 3)
+        uses: dev-drprasad/delete-older-releases@v0.3.2
+        with:
+          repo: ${{ github.repository }}
+          keep_latest: 3
+          regex_pattern: 'Windows11_22H2_amd64.*'
+          delete_tags: true
+          delete_older_than: 0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  clean-win11-23h2-amd64:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clean Windows11_23H2_amd64 releases (keep latest 3)
+        uses: dev-drprasad/delete-older-releases@v0.3.2
+        with:
+          repo: ${{ github.repository }}
+          keep_latest: 3
+          regex_pattern: 'Windows11_23H2_amd64.*'
+          delete_tags: true
+          delete_older_than: 0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  clean-win11-24h2-amd64:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clean Windows11_24H2_amd64 releases (keep latest 3)
+        uses: dev-drprasad/delete-older-releases@v0.3.2
+        with:
+          repo: ${{ github.repository }}
+          keep_latest: 3
+          regex_pattern: 'Windows11_24H2_amd64.*'
+          delete_tags: true
+          delete_older_than: 0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  clean-win11-25h2-amd64:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clean Windows11_25H2_amd64 releases (keep latest 3)
+        uses: dev-drprasad/delete-older-releases@v0.3.2
+        with:
+          repo: ${{ github.repository }}
+          keep_latest: 3
+          regex_pattern: 'Windows11_25H2_amd64.*'
+          delete_tags: true
+          delete_older_than: 0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  clean-win11-26h1-amd64:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clean Windows11_26H1_amd64 releases (keep latest 3)
+        uses: dev-drprasad/delete-older-releases@v0.3.2
+        with:
+          repo: ${{ github.repository }}
+          keep_latest: 3
+          regex_pattern: 'Windows11_26H1_amd64.*'
+          delete_tags: true
+          delete_older_than: 0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  clean-win11-26h2-amd64:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clean Windows11_26H2_amd64 releases (keep latest 3)
+        uses: dev-drprasad/delete-older-releases@v0.3.2
+        with:
+          repo: ${{ github.repository }}
+          keep_latest: 3
+          regex_pattern: 'Windows11_26H2_amd64.*'
+          delete_tags: true
+          delete_older_than: 0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
