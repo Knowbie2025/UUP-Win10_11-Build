@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 env:
-  Build_VERSION: '19045.7291'
+  Build_VERSION: '19045.7417'
   FILE_NAME: Windows10_22H2_arm64
   FIX_RELEASE_TAG: Windows10_22H2_arm64
   ALI_YUN_DRIVE_UPLOAD_PATH: Windows_10_11_ISO/Windows10_22H2_arm64
