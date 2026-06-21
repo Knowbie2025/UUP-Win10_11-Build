@@ -1,5 +1,5 @@
 @echo off
-:: Generated on 2026-06-14 12:15:56 GMT
+:: Generated on 2026-06-21 13:08:29 GMT
 
 :: Proxy configuration
 :: If you need to configure a proxy to be able to connect to the internet,
@@ -52,7 +52,7 @@ SETLOCAL DISABLEDELAYEDEXPANSION
 goto :EOF
 
 :START_PROCESS
-title 28020.2298_amd64_zh-cn_multi_7984b2f8 download
+title 28020.2308_amd64_zh-cn_multi_67081123 download
 
 set "aria2=files\aria2c.exe"
 set "a7z=files\7zr.exe"
@@ -79,7 +79,7 @@ echo.
 
 :DOWNLOAD_APPS
 echo Retrieving aria2 script for Microsoft Store Apps...
-"%aria2%" --no-conf --async-dns=false --console-log-level=warn --log-level=info --log="aria2_download.log" -o"%aria2Script%" --allow-overwrite=true --auto-file-renaming=false "https://uupdump.net/get.php?id=7984b2f8-39cc-4cce-a5f7-93ec2143a26b&pack=neutral&edition=app&aria2=2"
+"%aria2%" --no-conf --async-dns=false --console-log-level=warn --log-level=info --log="aria2_download.log" -o"%aria2Script%" --allow-overwrite=true --auto-file-renaming=false "https://uupdump.net/get.php?id=67081123-2436-4e87-b455-d12222ebe016&pack=neutral&edition=app&aria2=2"
 if %ERRORLEVEL% GTR 0 call :DOWNLOAD_ERROR & exit /b 1
 echo.
 
@@ -99,7 +99,7 @@ echo.
 
 :DOWNLOAD_UUPS
 echo Retrieving aria2 script for the UUP set...
-"%aria2%" --no-conf --async-dns=false --console-log-level=warn --log-level=info --log="aria2_download.log" -o"%aria2Script%" --allow-overwrite=true --auto-file-renaming=false "https://uupdump.net/get.php?id=7984b2f8-39cc-4cce-a5f7-93ec2143a26b&pack=zh-cn&edition=professional%%3Bcorecountryspecific&aria2=2"
+"%aria2%" --no-conf --async-dns=false --console-log-level=warn --log-level=info --log="aria2_download.log" -o"%aria2Script%" --allow-overwrite=true --auto-file-renaming=false "https://uupdump.net/get.php?id=67081123-2436-4e87-b455-d12222ebe016&pack=zh-cn&edition=professional%%3Bcorecountryspecific&aria2=2"
 if %ERRORLEVEL% GTR 0 call :DOWNLOAD_ERROR & exit /b 1
 echo.
 
