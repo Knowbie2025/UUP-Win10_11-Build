@@ -86,33 +86,46 @@ jobs:
           generate_release_notes: false
           append_body: false
 
-      # 安装 aliyunpan-cli v0.3.7
-      - name: Install aliyunpan-cli(v0.3.7)
+      # 安装 aliyunpan-cli v0.3.9（修复路径问题）
+      - name: Install aliyunpan-cli(v0.3.9)
         shell: pwsh
         run: |
-          $url = "https://ghfast.top/https://github.com/tickstep/aliyunpan/releases/download/v0.3.7/aliyunpan-v0.3.7-windows-x64.zip"
+          $url = "https://ghfast.top/https://github.com/tickstep/aliyunpan/releases/download/v0.3.9/aliyunpan-v0.3.9-windows-x64.zip"
           Invoke-WebRequest -Uri $url -OutFile aliyunpan.zip -UseBasicParsing -TimeoutSec 180 -SkipCertificateCheck
           7z x aliyunpan.zip -oaliyunpan -spe -y
+          # 直接获取 exe 路径并写入环境变量
           $ALI_EXE = (Get-ChildItem ./aliyunpan -Recurse -Filter "aliyunpan.exe").FullName
+          # 关键修复：确保路径格式正确，且环境变量生效
           echo "ALI_EXE=$ALI_EXE" >> $env:GITHUB_ENV
+          # 直接打印路径，方便调试
+          Write-Host "ALI_EXE path: $ALI_EXE"
 
-      # 阿里云盘 - Refresh Token 登录（精简稳定版，不再手动写配置文件）
+      # 阿里云盘登录 + 路径校验（修复命令调用问题）
       - name: Login to Aliyun Drive
         shell: pwsh
         run: |
-          & "$env:ALI_EXE" token set -t "${{ secrets.ALI_REFRESH_TOKEN }}"
-          & "$env:ALI_EXE" whoami
+          $ALI_EXE = $env:ALI_EXE
+          Write-Host "aliyunpan 实际路径: $ALI_EXE"
+          if (-not (Test-Path $ALI_EXE)) {
+            Write-Error "aliyunpan.exe 未找到！"
+            dir ./aliyunpan -Recurse
+            exit 1
+          }
+          # 关键修复：使用 & 调用变量中的路径，避免被当作普通字符串
+          & $ALI_EXE token set -RefreshToken "${{ secrets.ALI_REFRESH_TOKEN }}"
+          & $ALI_EXE whoami
 
       # 阿里云盘自动建目录
       - name: Mkdir Aliyun Remote Dir
         shell: pwsh
         run: |
-          $remotePath="${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
-          Write-Host "阿里云目标路径：$remotePath"
-          $checkRet = & "$env:ALI_EXE" ls "$remotePath" 2>&1
+          $ALI_EXE = $env:ALI_EXE
+          $remotePath = "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+          Write-Host "阿里云目标路径: $remotePath"
+          & $ALI_EXE ls "$remotePath" 2>&1
           if ($LASTEXITCODE -ne 0) {
-            Write-Host "目录不存在，正在创建..."
-            & "$env:ALI_EXE" mkdir -p "$remotePath"
+            Write-Host "目录不存在，开始创建"
+            & $ALI_EXE mkdir -p "$remotePath"
             Start-Sleep 2
           }
 
@@ -120,16 +133,17 @@ jobs:
       - name: Upload to Aliyun Drive
         shell: pwsh
         run: |
-          $remotePath="${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+          $ALI_EXE = $env:ALI_EXE
+          $remotePath = "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
           $fileList = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*"
-          & "$env:ALI_EXE" cd "$remotePath"
+          & $ALI_EXE cd "$remotePath"
           foreach($f in $fileList){
-            Write-Host "开始上传阿里云：$($f.Name)"
+            Write-Host "正在上传: $($f.Name)"
             $retry = 2
             for($i=0;$i -le $retry;$i++){
-              & "$env:ALI_EXE" upload "$($f.FullName)"
+              & $ALI_EXE upload "$($f.FullName)"
               if($LASTEXITCODE -eq 0){ break }
-              Write-Host "上传失败，等待10s重试，剩余重试次数：$($retry - $i)"
+              Write-Host "上传失败，10秒后重试"
               Start-Sleep 10
             }
             Start-Sleep 3
@@ -170,7 +184,6 @@ jobs:
             Invoke-RestMethod -Uri "$baseUrl/api/fs/put" -Method Put -Headers $putHeader -InFile $f.FullName
             Start-Sleep 3
           }
-
 
       # 清理临时文件
       - name: Clean Workspace
