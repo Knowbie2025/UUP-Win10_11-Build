@@ -1,5 +1,5 @@
 @echo off
-:: Generated on 2026-06-15 15:24:16 GMT
+:: Generated on 2026-06-22 15:22:51 GMT
 
 :: Proxy configuration
 :: If you need to configure a proxy to be able to connect to the internet,
