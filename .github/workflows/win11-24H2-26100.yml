@@ -48,7 +48,7 @@ jobs:
           choco install 7zip -y
           echo "${env:ProgramFiles}\\7-Zip" | Out-File -FilePath $env:GITHUB_PATH -Append
 
-      # 2000M分卷压缩
+      # 2000M 分卷压缩
       - name: Split Compress ZIP(1.95G/part)
         shell: cmd
         run: 7z a -tzip -v2000M %FIX_RELEASE_TAG%_%Build_VERSION%.zip %FILE_NAME%\*.iso -mx=6
