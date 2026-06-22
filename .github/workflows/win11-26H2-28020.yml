@@ -26,34 +26,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      # ========== 新增核心修复：解决uup-converter 404下载失败 ==========
-      - name: Fix UUP Download URL & Optimize Aria2 Params
-        shell: pwsh
-        run: |
-          $cmdPath = "$env:FILE_NAME\uup_download_windows.cmd"
-          $rawContent = Get-Content $cmdPath -Raw
-          # 替换过期带版本链接为官方新地址 + 国内shturl镜像加速
-          $rawContent = $rawContent -replace "https://uupdump.net/misc/uup-converter-wimlib-v122.7z", "https://shturl.cc//https://git.uupdump.net/uup-dump/misc/raw/branch/master/uup-converter-wimlib.7z"
-          $rawContent = $rawContent -replace "https://uupdump.net/misc/7zr.exe", "https://shturl.cc//https://git.uupdump.net/uup-dump/misc/raw/branch/master/7zr.exe"
-          $rawContent = $rawContent -replace "https://uupdump.net/misc/aria2c.exe", "https://shturl.cc//https://git.uupdump.net/uup-dump/misc/raw/branch/master/aria2c.exe"
-          # 增加aria2超时、重试参数，缓解海外网络波动
-          $rawContent = $rawContent -replace "aria2c ", "aria2c --connect-timeout=60 --max-tries=10 "
-          # 覆写修改后的CMD脚本
-          $rawContent | Set-Content $cmdPath -Encoding ASCII
-          Write-Host "✅ UUP脚本下载链接与网络参数修复完成"
-
-      # 可选：离线预下载依赖工具到files目录，脚本直接跳过网络下载，双重兜底
-      - name: Pre-Download UUP Dependence Tools
-        shell: pwsh
-        run: |
-          $toolFolder = "$env:FILE_NAME\files"
-          New-Item -Path $toolFolder -ItemType Directory -Force | Out-Null
-          $mirrorPrefix = "https://shturl.cc//https://git.uupdump.net/uup-dump/misc/raw/branch/master/"
-          Invoke-WebRequest "$mirrorPrefix/uup-converter-wimlib.7z" -OutFile "$toolFolder\uup-converter-wimlib.7z" -UseBasicParsing -TimeoutSec 120
-          Invoke-WebRequest "$mirrorPrefix/7zr.exe" -OutFile "$toolFolder\7zr.exe" -UseBasicParsing -TimeoutSec 120
-          Invoke-WebRequest "$mirrorPrefix/aria2c.exe" -OutFile "$toolFolder\aria2c.exe" -UseBasicParsing -TimeoutSec 120
-          Write-Host "✅ UUP工具离线预下载完成"
-
       # UUP 编译打包 ISO
       - name: UUP dump build ISO
         shell: cmd
