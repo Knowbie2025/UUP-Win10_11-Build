@@ -26,34 +26,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      # ========== 核心修复1：替换失效404下载链接 + 优化aria2网络参数 ==========
+      # 修复UUP失效404下载链接 + aria2网络超时重试优化
       - name: Fix UUP Download URL & Aria2 Retry
         shell: pwsh
         run: |
           $cmdPath = "$env:FILE_NAME\uup_download_windows.cmd"
           $rawContent = Get-Content $cmdPath -Raw
-          # 替换带版本失效链接为官方无版本直链 + 国内shturl镜像加速
+          # 替换过期带版本链接为官方无版本直链 + 国内镜像加速
           $rawContent = $rawContent -replace "https://uupdump.net/misc/uup-converter-wimlib-v122.7z", "https://shturl.cc//https://git.uupdump.net/uup-dump/misc/raw/branch/master/uup-converter-wimlib.7z"
           $rawContent = $rawContent -replace "https://uupdump.net/misc/7zr.exe", "https://shturl.cc//https://git.uupdump.net/uup-dump/misc/raw/branch/master/7zr.exe"
           $rawContent = $rawContent -replace "https://uupdump.net/misc/aria2c.exe", "https://shturl.cc//https://git.uupdump.net/uup-dump/misc/raw/branch/master/aria2c.exe"
-          # 增加aria2超时、重试参数，缓解海外网络波动
+          # 增加aria2连接超时、最大重试，解决海外网络波动
           $rawContent = $rawContent -replace "aria2c ", "aria2c --connect-timeout=60 --max-tries=10 "
-          # 覆写修改后的CMD脚本
           $rawContent | Set-Content $cmdPath -Encoding ASCII
           Write-Host "✅ UUP脚本下载链接与网络参数修复完成"
-
-      # ========== 核心修复2：离线预下载全部依赖工具，兜底跳过网络下载 ==========
-      - name: Pre-Download UUP Tools To Local Files Folder
-        shell: pwsh
-        run: |
-          $toolFolder = "$env:FILE_NAME\files"
-          New-Item -Path $toolFolder -ItemType Directory -Force | Out-Null
-          $mirrorPrefix = "https://shturl.cc//https://git.uupdump.net/uup-dump/misc/raw/branch/master/"
-          # 批量下载三个必需工具包
-          Invoke-WebRequest "$mirrorPrefix/uup-converter-wimlib.7z" -OutFile "$toolFolder\uup-converter-wimlib.7z" -UseBasicParsing -TimeoutSec 120
-          Invoke-WebRequest "$mirrorPrefix/7zr.exe" -OutFile "$toolFolder\7zr.exe" -UseBasicParsing -TimeoutSec 120
-          Invoke-WebRequest "$mirrorPrefix/aria2c.exe" -OutFile "$toolFolder\aria2c.exe" -UseBasicParsing -TimeoutSec 120
-          Write-Host "✅ UUP工具离线预下载完成，脚本将跳过网络下载步骤"
 
       # UUP 编译打包 ISO
       - name: UUP dump build ISO
