@@ -26,35 +26,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      # 修复UUP脚本失效下载链接 + aria2超时重试优化（核心修复步骤）
-      - name: Fix UUP Download URL & Optimize Aria2 Params
-        shell: pwsh
-        run: |
-          $cmdPath = "$env:FILE_NAME\uup_download_windows.cmd"
-          $rawContent = Get-Content $cmdPath -Raw
-          # 替换过期带版本链接为官方新地址 + 国内加速镜像
-          $rawContent = $rawContent -replace "https://uupdump.net/misc/uup-converter-wimlib-v122.7z", "https://shturl.cc//https://git.uupdump.net/uup-dump/misc/raw/branch/master/uup-converter-wimlib.7z"
-          $rawContent = $rawContent -replace "https://uupdump.net/misc/7zr.exe", "https://shturl.cc//https://git.uupdump.net/uup-dump/misc/raw/branch/master/7zr.exe"
-          $rawContent = $rawContent -replace "https://uupdump.net/misc/aria2c.exe", "https://shturl.cc//https://git.uupdump.net/uup-dump/misc/raw/branch/master/aria2c.exe"
-          # 增加aria2连接超时、最大重试次数，解决海外网络中断
-          $rawContent = $rawContent -replace "aria2c ", "aria2c --connect-timeout=60 --max-tries=10 "
-          # 覆写修改后的脚本
-          $rawContent | Set-Content $cmdPath -Encoding ASCII
-          Write-Host "✅ UUP脚本下载链接与网络参数修复完成"
-
-      # 【可选】离线预下载工具到files目录，脚本直接跳过下载，彻底规避网络问题
-      - name: Pre-Download UUP Dependence Tools
-        shell: pwsh
-        run: |
-          $toolFolder = "$env:FILE_NAME\files"
-          New-Item -Path $toolFolder -ItemType Directory -Force | Out-Null
-          $mirrorPrefix = "https://shturl.cc//https://git.uupdump.net/uup-dump/misc/raw/branch/master/"
-          # 批量下载三个必需工具
-          Invoke-WebRequest "$mirrorPrefix/uup-converter-wimlib.7z" -OutFile "$toolFolder\uup-converter-wimlib.7z" -UseBasicParsing -TimeoutSec 120
-          Invoke-WebRequest "$mirrorPrefix/7zr.exe" -OutFile "$toolFolder\7zr.exe" -UseBasicParsing -TimeoutSec 120
-          Invoke-WebRequest "$mirrorPrefix/aria2c.exe" -OutFile "$toolFolder\aria2c.exe" -UseBasicParsing -TimeoutSec 120
-          Write-Host "✅ 离线工具预下载完成"
-
       # UUP 编译打包 ISO
       - name: UUP dump build ISO
         shell: cmd
@@ -125,7 +96,7 @@ jobs:
           $ALI_EXE = (Get-ChildItem ./aliyunpan -Recurse -Filter "aliyunpan.exe").FullName
           echo "ALI_EXE=$ALI_EXE" >> $env:GITHUB_ENV
 
-      # 阿里云盘 - Refresh Token 登录
+      # 阿里云盘 - Refresh Token 登录（精简稳定版，不再手动写配置文件）
       - name: Login to Aliyun Drive
         shell: pwsh
         run: |
@@ -199,6 +170,7 @@ jobs:
             Invoke-RestMethod -Uri "$baseUrl/api/fs/put" -Method Put -Headers $putHeader -InFile $f.FullName
             Start-Sleep 3
           }
+
 
       # 清理临时文件
       - name: Clean Workspace
