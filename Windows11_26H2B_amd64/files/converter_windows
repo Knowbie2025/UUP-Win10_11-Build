@@ -1,0 +1,7 @@
+https://uupdump.net/misc/7zr.exe
+  out=7zr.exe
+  checksum=sha-256=72c98287b2e8f85ea7bb87834b6ce1ce7ce7f41a8c97a81b307d4d4bf900922b
+
+https://uupdump.net/misc/uup-converter-wimlib-v123.7z
+  out=uup-converter-wimlib.7z
+  checksum=sha-256=e692b3ca2b859160ea7010f3ea6157dce21703d27750ce56b72e347280f1848c
