@@ -7,14 +7,12 @@ on:
     - cron: '0 0 * * 0'
   workflow_dispatch:
 
-# 全局授予读写权限，解决删除Release权限报错
-permissions:
-  contents: write
-  releases: write
-
 jobs:
   clean-win10-22h2-amd64:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      releases: write
     steps:
       - name: Clean Windows10_22H2_amd64 releases (keep latest 3)
         uses: dev-drprasad/delete-older-releases@v0.3.2
@@ -25,6 +23,9 @@ jobs:
 
   clean-win10-22h2-arm64:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      releases: write
     steps:
       - name: Clean Windows10_22H2_arm64 releases (keep latest 3)
         uses: dev-drprasad/delete-older-releases@v0.3.2
@@ -35,6 +36,9 @@ jobs:
 
   clean-win10-22h2-x86:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      releases: write
     steps:
       - name: Clean Windows10_22H2_x86 releases (keep latest 3)
         uses: dev-drprasad/delete-older-releases@v0.3.2
@@ -45,6 +49,9 @@ jobs:
 
   clean-win10-v1809-amd64:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      releases: write
     steps:
       - name: Clean Windows10_v1809_amd64 releases (keep latest 3)
         uses: dev-drprasad/delete-older-releases@v0.3.2
@@ -55,6 +62,9 @@ jobs:
 
   clean-win10-v1809-x86:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      releases: write
     steps:
       - name: Clean Windows10_v1809_x86 releases (keep latest 3)
         uses: dev-drprasad/delete-older-releases@v0.3.2
@@ -65,6 +75,9 @@ jobs:
 
   clean-win11-22h2-amd64:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      releases: write
     steps:
       - name: Clean Windows11_22H2_amd64 releases (keep latest 3)
         uses: dev-drprasad/delete-older-releases@v0.3.2
@@ -75,6 +88,9 @@ jobs:
 
   clean-win11-23h2-amd64:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      releases: write
     steps:
       - name: Clean Windows11_23H2_amd64 releases (keep latest 3)
         uses: dev-drprasad/delete-older-releases@v0.3.2
@@ -85,6 +101,9 @@ jobs:
 
   clean-win11-24h2-amd64:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      releases: write
     steps:
       - name: Clean Windows11_24H2_amd64 releases (keep latest 3)
         uses: dev-drprasad/delete-older-releases@v0.3.2
@@ -95,6 +114,9 @@ jobs:
 
   clean-win11-25h2-amd64:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      releases: write
     steps:
       - name: Clean Windows11_25H2_amd64 releases (keep latest 3)
         uses: dev-drprasad/delete-older-releases@v0.3.2
@@ -105,6 +127,9 @@ jobs:
 
   clean-win11-25h2b-amd64:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      releases: write
     steps:
       - name: Clean Windows11_25H2B_amd64 releases (keep latest 3)
         uses: dev-drprasad/delete-older-releases@v0.3.2
@@ -115,6 +140,9 @@ jobs:
 
   clean-win11-26h1-amd64:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      releases: write
     steps:
       - name: Clean Windows11_26H1_amd64 releases (keep latest 3)
         uses: dev-drprasad/delete-older-releases@v0.3.2
@@ -125,6 +153,9 @@ jobs:
 
   clean-win11-26h2-amd64:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      releases: write
     steps:
       - name: Clean Windows11_26H2_amd64 releases (keep latest 3)
         uses: dev-drprasad/delete-older-releases@v0.3.2
@@ -135,6 +166,9 @@ jobs:
 
   clean-win11-26h2b-amd64:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      releases: write
     steps:
       - name: Clean Windows11_26H2B_amd64 releases (keep latest 3)
         uses: dev-drprasad/delete-older-releases@v0.3.2
