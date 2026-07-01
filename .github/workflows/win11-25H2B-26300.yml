@@ -41,7 +41,7 @@ jobs:
           dir *.iso
           cd ..
 
-      # 安装 7zip
+      # 安装  7zip
       - name: Install 7-Zip via Powershell
         shell: pwsh
         run: |
