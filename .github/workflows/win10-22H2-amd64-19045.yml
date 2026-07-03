@@ -28,33 +28,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      # 步骤1：替换为国内uupdump.cn新版脚本，移除带v122废弃链接的旧文件
-      - name: Replace Domestic UUP Windows Script
+      # 仅修改脚本内部URL，无额外网络下载，彻底规避连接拒绝/404
+      - name: Patch UUP Script All Dead Links With Ghfast Global Mirror
         shell: pwsh
         run: |
-          $cmdFullPath = Join-Path $env:FILE_NAME "uup_download_windows.cmd"
-          # 删除仓库自带失效旧脚本
-          Remove-Item -Path $cmdFullPath -Force -ErrorAction SilentlyContinue
-          # 下载国内维护的可用新版脚本
-          Invoke-WebRequest -Uri "https://uupdump.cn/static/scripts/uup_download_windows.cmd" -OutFile $cmdFullPath -UseBasicParsing -TimeoutSec 180
-          Write-Host "✅ 已替换为国内适配版uup下载脚本，移除废弃v122硬编码链接"
+          $cmdPath = Join-Path $env:FILE_NAME "uup_download_windows.cmd"
+          $scriptText = Get-Content $cmdPath -Raw -Encoding ASCII
 
-      # 步骤2：预下载全部转换工具至本地目录，脚本直接读取本地文件，不再发起网络请求
-      - name: Pre-Download All Converter Tools Locally
-        shell: pwsh
-        run: |
-          $workDir = $env:FILE_NAME
-          $filesDir = Join-Path $workDir "files"
-          # 确保files文件夹存在
-          New-Item -Path $filesDir -ItemType Directory -Force | Out-Null
+          # 1. 精确匹配带版本废弃转换器地址 v122
+          $scriptText = $scriptText -replace "https://uupdump\.net/misc/uup-converter-wimlib-\d+\.7z", "https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/uup-converter-wimlib.7z"
+          # 2. 替换工具exe下载地址
+          $scriptText = $scriptText -replace "https://uupdump\.net/misc/aria2c\.exe", "https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/aria2c.exe"
+          $scriptText = $scriptText -replace "https://uupdump\.net/misc/7zr\.exe", "https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/7zr.exe"
+          # 3. 兜底全局替换所有uupdump.net/misc 前缀，防止遗漏隐藏旧链接
+          $scriptText = $scriptText -replace "https://uupdump\.net/misc/", "https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/"
 
-          # 下载aria2c.exe
-          Invoke-WebRequest -Uri "https://uupdump.cn/misc/aria2c.exe" -OutFile "$workDir\aria2c.exe" -UseBasicParsing -TimeoutSec 120
-          # 下载7zr.exe
-          Invoke-WebRequest -Uri "https://uupdump.cn/misc/7zr.exe" -OutFile "$workDir\7zr.exe" -UseBasicParsing -TimeoutSec 120
-          # 下载转换核心包（无版本号永久地址）
-          Invoke-WebRequest -Uri "https://uupdump.cn/misc/uup-converter-wimlib.7z" -OutFile "$filesDir\uup-converter-wimlib.7z" -UseBasicParsing -TimeoutSec 180
-          Write-Host "✅ aria2c、7zr、转换工具包预下载完成，脚本将跳过网络下载步骤"
+          # 写回脚本，ASCII编码避免cmd乱码
+          Set-Content -Path $cmdPath -Value $scriptText -Encoding ASCII
+          Write-Host "✅ 脚本内全部失效URL已替换为ghfast全球加速镜像，无额外网络请求"
 
       # UUP 编译打包 ISO
       - name: UUP dump build ISO
@@ -126,7 +117,7 @@ jobs:
           $ALI_EXE = (Get-ChildItem ./aliyunpan -Recurse -Filter "aliyunpan.exe").FullName
           echo "ALI_EXE=$ALI_EXE" >> $env:GITHUB_ENV
 
-      # 阿里云盘 - Refresh Token 登录（精简稳定版，不再手动写配置文件）
+      # 阿里云盘 - Refresh Token 登录
       - name: Login to Aliyun Drive
         shell: pwsh
         run: |
