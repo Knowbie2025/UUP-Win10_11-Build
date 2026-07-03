@@ -28,22 +28,33 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      # 彻底修复脚本：全局精确替换所有旧域名地址，ghfast加速
-      - name: Full Fix UUP Download URLs
+      # 步骤1：替换为国内uupdump.cn新版脚本，移除带v122废弃链接的旧文件
+      - name: Replace Domestic UUP Windows Script
         shell: pwsh
         run: |
-          $cmdPath = Join-Path $env:FILE_NAME "uup_download_windows.cmd"
-          $raw = Get-Content $cmdPath -Raw -Encoding ASCII
-          # 精确替换转换器地址（匹配任意数字版本后缀）
-          $raw = $raw -replace "https://uupdump\.net/misc/uup-converter-wimlib-\d+\.7z", "https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/uup-converter-wimlib.7z"
-          # 替换aria2c工具
-          $raw = $raw -replace "https://uupdump\.net/misc/aria2c\.exe", "https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/aria2c.exe"
-          # 替换7zr工具
-          $raw = $raw -replace "https://uupdump\.net/misc/7zr\.exe", "https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/7zr.exe"
-          # 兜底：把所有uupdump.net/misc全局替换为加速镜像前缀
-          $raw = $raw -replace "https://uupdump\.net/misc/", "https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/"
-          Set-Content $cmdPath -Value $raw -Encoding ASCII
-          Write-Host "✅ 全部uupdump.net/misc链接已替换为ghfast加速镜像"
+          $cmdFullPath = Join-Path $env:FILE_NAME "uup_download_windows.cmd"
+          # 删除仓库自带失效旧脚本
+          Remove-Item -Path $cmdFullPath -Force -ErrorAction SilentlyContinue
+          # 下载国内维护的可用新版脚本
+          Invoke-WebRequest -Uri "https://uupdump.cn/static/scripts/uup_download_windows.cmd" -OutFile $cmdFullPath -UseBasicParsing -TimeoutSec 180
+          Write-Host "✅ 已替换为国内适配版uup下载脚本，移除废弃v122硬编码链接"
+
+      # 步骤2：预下载全部转换工具至本地目录，脚本直接读取本地文件，不再发起网络请求
+      - name: Pre-Download All Converter Tools Locally
+        shell: pwsh
+        run: |
+          $workDir = $env:FILE_NAME
+          $filesDir = Join-Path $workDir "files"
+          # 确保files文件夹存在
+          New-Item -Path $filesDir -ItemType Directory -Force | Out-Null
+
+          # 下载aria2c.exe
+          Invoke-WebRequest -Uri "https://uupdump.cn/misc/aria2c.exe" -OutFile "$workDir\aria2c.exe" -UseBasicParsing -TimeoutSec 120
+          # 下载7zr.exe
+          Invoke-WebRequest -Uri "https://uupdump.cn/misc/7zr.exe" -OutFile "$workDir\7zr.exe" -UseBasicParsing -TimeoutSec 120
+          # 下载转换核心包（无版本号永久地址）
+          Invoke-WebRequest -Uri "https://uupdump.cn/misc/uup-converter-wimlib.7z" -OutFile "$filesDir\uup-converter-wimlib.7z" -UseBasicParsing -TimeoutSec 180
+          Write-Host "✅ aria2c、7zr、转换工具包预下载完成，脚本将跳过网络下载步骤"
 
       # UUP 编译打包 ISO
       - name: UUP dump build ISO
