@@ -28,25 +28,23 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      # 强制重写脚本下载变量，使用无版本永久地址，规避版本迭代404
+      # 强制重写脚本下载变量，使用无版本永久地址，规避版本迭代404（修复PowerShell replace语法错误）
       - name: Overwrite UUP Download URL Variables (Permanent No-Version Link)
         shell: pwsh
         run: |
           $cmdPath = Join-Path $env:FILE_NAME "uup_download_windows.cmd"
           $raw = Get-Content $cmdPath -Raw -Encoding ASCII
-          # 转换器：替换带任意版本号的旧地址为永久无版本ghfast加速地址
-          $raw = $raw -replace '^set CONVERTER_URL=.*$', 'set CONVERTER_URL=https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/uup-converter-wimlib.7z', 'Multiline'
-          # aria2c工具地址
-          $raw = $raw -replace '^set ARIA2_URL=.*$', 'set ARIA2_URL=https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/aria2c.exe', 'Multiline'
-          # 7zr工具地址
-          $raw = $raw -replace '^set SEVENZIP_URL=.*$', 'set SEVENZIP_URL=https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/7zr.exe', 'Multiline'
-          # 兜底：清除所有残留带v数字的旧链接
+          # 转换器地址替换，(?m) 内联多行匹配，修复语法报错
+          $raw = $raw -replace '(?m)^set CONVERTER_URL=.*$', 'set CONVERTER_URL=https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/uup-converter-wimlib.7z'
+          $raw = $raw -replace '(?m)^set ARIA2_URL=.*$', 'set ARIA2_URL=https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/aria2c.exe'
+          $raw = $raw -replace '(?m)^set SEVENZIP_URL=.*$', 'set SEVENZIP_URL=https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/7zr.exe'
+          # 兜底清除所有旧版本链接
           $raw = $raw -replace "https://uupdump\.net/misc/uup-converter-wimlib-\d+\.7z", "https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/uup-converter-wimlib.7z"
           $raw = $raw -replace "https://uupdump\.net/misc/", "https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/"
-          # 关闭aria2证书校验，海外Runner网络兼容
+          # aria2 关闭证书校验适配海外网络
           $raw = $raw -replace "aria2c ", "aria2c --check-certificate=false "
           Set-Content $cmdPath $raw -Encoding ASCII
-          Write-Host "✅ 已替换为无版本永久转换器地址，后续v125/v126升级无需再改脚本"
+          Write-Host "✅ 已替换为无版本永久转换器地址，后续版本升级无需修改脚本"
 
       # UUP 编译打包 ISO
       - name: UUP dump build ISO
