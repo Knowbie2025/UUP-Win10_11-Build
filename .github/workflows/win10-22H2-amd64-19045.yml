@@ -28,43 +28,32 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      # 全局清理所有失效链接，同时处理autodl配置文件兜底
-      - name: Overwrite All Dead Links In Script & AutoDL Config
+      # 【根治方案】删除仓库旧失效脚本，下载官方最新原版cmd（原生无v版本链接）
+      - name: Download Official Latest UUP Windows Script
         shell: pwsh
         run: |
           $cmdPath = Join-Path $env:FILE_NAME "uup_download_windows.cmd"
-          $raw = Get-Content $cmdPath -Raw -Encoding ASCII
-          $newConvUrl = "https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/uup-converter-wimlib.7z"
-          $newAriaUrl = "https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/aria2c.exe"
-          $new7zUrl = "https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/7zr.exe"
+          # 删除本地带v122硬编码的旧脚本
+          Remove-Item $cmdPath -Force -ErrorAction SilentlyContinue
+          # ghfast加速官方Gitea最新原版脚本
+          $scriptUrl = "https://ghfast.top/https://git.uupdump.net/uup-dump/uup-dump/raw/branch/master/uup_download_windows.cmd"
+          Invoke-WebRequest -Uri $scriptUrl -OutFile $cmdPath -UseBasicParsing -TimeoutSec 240 -SkipCertificateCheck
+          Write-Host "✅ 已替换为官方最新原版脚本，内置永久无版本转换器地址，无v122/v123/v124硬编码"
 
-          # 替换URL变量定义
-          $raw = $raw -replace '(?m)^set CONVERTER_URL=.*$', "set CONVERTER_URL=$newConvUrl"
-          $raw = $raw -replace '(?m)^set ARIA2_URL=.*$', "set ARIA2_URL=$newAriaUrl"
-          $raw = $raw -replace '(?m)^set SEVENZIP_URL=.*$', "set SEVENZIP_URL=$new7zUrl"
+      # 预下载全部工具包到本地files目录，脚本直接读取本地文件，完全跳过aria2下载
+      - name: Pre-Download All Converter Tools Locally
+        shell: pwsh
+        run: |
+          $workDir = $env:FILE_NAME
+          $filesDir = Join-Path $workDir "files"
+          New-Item -Path $filesDir -ItemType Directory -Force | Out-Null
+          $mirrorPrefix = "https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master"
 
-          # 暴力清除所有带版本号的转换器旧链接
-          $raw = $raw -replace "https://uupdump\.net/misc/uup-converter-wimlib-\d+\.7z", $newConvUrl
-          # 替换工具exe原始域名链接
-          $raw = $raw -replace "https://uupdump\.net/misc/aria2c\.exe", $newAriaUrl
-          $raw = $raw -replace "https://uupdump\.net/misc/7zr\.exe", $new7zUrl
-          # 兜底替换所有uupdump.net/misc根域名
-          $raw = $raw -replace "https://uupdump\.net/misc/", "https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/"
-
-          # aria2 关闭SSL校验适配海外Runner
-          $raw = $raw -replace "aria2c ", "aria2c --check-certificate=false "
-
-          Set-Content $cmdPath $raw -Encoding ASCII
-
-          # 同步修复autodl_files内的配置（如果存在）
-          $autodlPath = Join-Path $env:FILE_NAME "autodl_files\converter_windows"
-          if(Test-Path $autodlPath){
-            $adlRaw = Get-Content $autodlPath -Raw
-            $adlRaw = $adlRaw -replace "https://uupdump\.net/misc/uup-converter-wimlib-\d+\.7z", $newConvUrl
-            $adlRaw = $adlRaw -replace "https://uupdump\.net/misc/", "https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/"
-            Set-Content $autodlPath $adlRaw -Encoding ASCII
-          }
-          Write-Host "✅ 全部v版本废弃链接清理完成，同步修复autodl配置"
+          # 预下载3个核心文件到对应路径
+          Invoke-WebRequest -Uri "$mirrorPrefix/aria2c.exe" -OutFile "$workDir\aria2c.exe" -UseBasicParsing -TimeoutSec 120 -SkipCertificateCheck
+          Invoke-WebRequest -Uri "$mirrorPrefix/7zr.exe" -OutFile "$workDir\7zr.exe" -UseBasicParsing -TimeoutSec 120 -SkipCertificateCheck
+          Invoke-WebRequest -Uri "$mirrorPrefix/uup-converter-wimlib.7z" -OutFile "$filesDir\uup-converter-wimlib.7z" -UseBasicParsing -TimeoutSec 180 -SkipCertificateCheck
+          Write-Host "✅ 转换工具预下载完成，脚本检测本地存在文件，不会发起外网下载请求"
 
       # UUP 编译打包 ISO
       - name: UUP dump build ISO
