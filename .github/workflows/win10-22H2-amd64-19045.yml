@@ -28,6 +28,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      # 自动修复UUP脚本失效下载链接，解决 converter 404报错
+      - name: Patch UUP Windows Download Script
+        shell: pwsh
+        run: |
+          $cmdFullPath = Join-Path $env:FILE_NAME "uup_download_windows.cmd"
+          $scriptContent = Get-Content -Path $cmdFullPath -Raw -Encoding ASCII
+          # 替换转换器带版本的失效地址
+          $scriptContent = $scriptContent -replace "https://uupdump\.net/misc/uup-converter-wimlib-[0-9]+\.7z", "https://git.uupdump.net/uup-dump/misc/raw/branch/master/uup-converter-wimlib.7z"
+          # 替换aria2c/7zr工具下载地址
+          $scriptContent = $scriptContent -replace "https://uupdump\.net/misc/aria2c\.exe", "https://git.uupdump.net/uup-dump/misc/raw/branch/master/aria2c.exe"
+          $scriptContent = $scriptContent -replace "https://uupdump\.net/misc/7zr\.exe", "https://git.uupdump.net/uup-dump/misc/raw/branch/master/7zr.exe"
+          # 覆盖写入修复后的脚本
+          Set-Content -Path $cmdFullPath -Value $scriptContent -Encoding ASCII
+          Write-Host "✅ UUP脚本链接修复完成，已替换全部失效下载地址"
+
       # UUP 编译打包 ISO
       - name: UUP dump build ISO
         shell: cmd
