@@ -28,25 +28,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      # 全局匹配任意v版本转换器链接，统一替换为永久无版本镜像地址
-      - name: Fix UUP Download URL & Aria2 Retry
-        shell: pwsh
-        run: |
-          $cmdPath = "$env:FILE_NAME\uup_download_windows.cmd"
-          $rawContent = Get-Content $cmdPath -Raw -Encoding ASCII
-          $mirrorBase = "https://shturl.cc/https://git.uupdump.net/uup-dump/misc/raw/branch/master"
-          # 正则匹配任意数字版本 v\d+，一次性清除v122/v123/v124等所有旧版地址
-          $rawContent = $rawContent -replace "https://uupdump\.net/misc/uup-converter-wimlib-v\d+\.7z", "$mirrorBase/uup-converter-wimlib.7z"
-          # 替换两个工具exe原始地址
-          $rawContent = $rawContent -replace "https://uupdump\.net/misc/7zr\.exe", "$mirrorBase/7zr.exe"
-          $rawContent = $rawContent -replace "https://uupdump\.net/misc/aria2c\.exe", "$mirrorBase/aria2c.exe"
-          # 兜底：全局替换所有uupdump.net/misc原始域名
-          $rawContent = $rawContent -replace "https://uupdump\.net/misc/", "$mirrorBase/"
-          # aria2 网络优化：超时、重试、关闭SSL证书校验，适配海外网络
-          $rawContent = $rawContent -replace "aria2c ", "aria2c --connect-timeout=60 --max-tries=10 --check-certificate=false "
-          $rawContent | Set-Content $cmdPath -Encoding ASCII
-          Write-Host "✅ UUP脚本全部带v版本废弃链接已替换为永久无版本地址，网络参数优化完成"
-
       # UUP 编译打包 ISO
       - name: UUP dump build ISO
         shell: cmd
@@ -69,7 +50,7 @@ jobs:
           choco install 7zip -y
           echo "${env:ProgramFiles}\\7-Zip" | Out-File -FilePath $env:GITHUB_PATH -Append
 
-      # 2000M分卷压缩
+      # 2000M 分卷压缩
       - name: Split Compress ZIP(1.95G/part)
         shell: cmd
         run: 7z a -tzip -v2000M %FIX_RELEASE_TAG%_%Build_VERSION%.zip %FILE_NAME%\*.iso -mx=6
@@ -107,49 +88,33 @@ jobs:
           generate_release_notes: false
           append_body: false
 
-      # 【动态获取最新版aliyunpan-cli，不再硬编码v0.3.9】
-      - name: Install Latest aliyunpan-cli (Auto get latest release tag)
+      # 安装 aliyunpan-cli v0.3.7
+      - name: Install aliyunpan-cli(v0.3.7)
         shell: pwsh
         run: |
-          # 调用GitHub API获取最新Release标签
-          $apiUrl = "https://api.github.com/repos/tickstep/aliyunpan/releases/latest"
-          $releaseInfo = Invoke-RestMethod -Uri $apiUrl -UseBasicParsing -TimeoutSec 120
-          $latestTag = $releaseInfo.tag_name
-          Write-Host "检测到aliyunpan最新版本: $latestTag"
-          # 拼接加速下载地址
-          $downloadUrl = "https://ghfast.top/https://github.com/tickstep/aliyunpan/releases/download/$latestTag/aliyunpan-$latestTag-windows-x64.zip"
-          Invoke-WebRequest -Uri $downloadUrl -OutFile aliyunpan.zip -UseBasicParsing -TimeoutSec 180 -SkipCertificateCheck
-          # 解压
+          $url = "https://ghfast.top/https://github.com/tickstep/aliyunpan/releases/download/v0.3.7/aliyunpan-v0.3.7-windows-x64.zip"
+          Invoke-WebRequest -Uri $url -OutFile aliyunpan.zip -UseBasicParsing -TimeoutSec 180 -SkipCertificateCheck
           7z x aliyunpan.zip -oaliyunpan -spe -y
           $ALI_EXE = (Get-ChildItem ./aliyunpan -Recurse -Filter "aliyunpan.exe").FullName
           echo "ALI_EXE=$ALI_EXE" >> $env:GITHUB_ENV
-          Write-Host "ALI_EXE path: $ALI_EXE"
 
-      # 阿里云盘登录 + 路径校验
+      # 阿里云盘 - Refresh Token 登录（精简稳定版，不再手动写配置文件）
       - name: Login to Aliyun Drive
         shell: pwsh
         run: |
-          $ALI_EXE = $env:ALI_EXE
-          Write-Host "aliyunpan 实际路径: $ALI_EXE"
-          if (-not (Test-Path $ALI_EXE)) {
-            Write-Error "aliyunpan.exe 未找到！"
-            dir ./aliyunpan -Recurse
-            exit 1
-          }
-          & $ALI_EXE token set -RefreshToken "${{ secrets.ALI_REFRESH_TOKEN }}"
-          & $ALI_EXE whoami
+          & "$env:ALI_EXE" token set -t "${{ secrets.ALI_REFRESH_TOKEN }}"
+          & "$env:ALI_EXE" whoami
 
       # 阿里云盘自动建目录
       - name: Mkdir Aliyun Remote Dir
         shell: pwsh
         run: |
-          $ALI_EXE = $env:ALI_EXE
-          $remotePath = "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
-          Write-Host "阿里云目标路径: $remotePath"
-          & $ALI_EXE ls "$remotePath" 2>&1
+          $remotePath="${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+          Write-Host "阿里云目标路径：$remotePath"
+          $checkRet = & "$env:ALI_EXE" ls "$remotePath" 2>&1
           if ($LASTEXITCODE -ne 0) {
-            Write-Host "目录不存在，开始创建"
-            & $ALI_EXE mkdir -p "$remotePath"
+            Write-Host "目录不存在，正在创建..."
+            & "$env:ALI_EXE" mkdir -p "$remotePath"
             Start-Sleep 2
           }
 
@@ -157,17 +122,16 @@ jobs:
       - name: Upload to Aliyun Drive
         shell: pwsh
         run: |
-          $ALI_EXE = $env:ALI_EXE
-          $remotePath = "${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
+          $remotePath="${{ env.ALI_YUN_DRIVE_UPLOAD_PATH }}"
           $fileList = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*"
-          & $ALI_EXE cd "$remotePath"
+          & "$env:ALI_EXE" cd "$remotePath"
           foreach($f in $fileList){
-            Write-Host "正在上传: $($f.Name)"
+            Write-Host "开始上传阿里云：$($f.Name)"
             $retry = 2
             for($i=0;$i -le $retry;$i++){
-              & $ALI_EXE upload "$($f.FullName)"
+              & "$env:ALI_EXE" upload "$($f.FullName)"
               if($LASTEXITCODE -eq 0){ break }
-              Write-Host "上传失败，10秒后重试"
+              Write-Host "上传失败，等待10s重试，剩余重试次数：$($retry - $i)"
               Start-Sleep 10
             }
             Start-Sleep 3
@@ -179,20 +143,23 @@ jobs:
         run: |
           $ErrorActionPreference = "Continue"
           $baseUrl = "${{ env.ALIST_URL }}"
-          $user = "${{ secrets.ALIST_USER }}"
-          $pass = "${{ secrets.ALIST_PASS }}"
+          $user = "${{ env.ALIST_USER }}"
+          $pass = "${{ env.ALIST_PASS }}"
           $uploadPath = "/阿里云盘-Windows_10_11_ISO/${{ env.FIX_RELEASE_TAG }}"
 
+          # 登录获取Token
           $loginBody = @{username=$user;password=$pass} | ConvertTo-Json
           $loginRes = Invoke-RestMethod -Method Post -Uri "$baseUrl/api/auth/login" -Body $loginBody -ContentType "application/json"
           $token = $loginRes.data.token
           $header = @{Authorization="Bearer $token"}
 
+          # 自动创建远端文件夹
           try{
             $mkBody = @{path=$uploadPath} | ConvertTo-Json
             Invoke-RestMethod -Uri "$baseUrl/api/fs/mkdir" -Method Post -Headers $header -Body $mkBody -ContentType "application/json" | Out-Null
           }catch{ Write-Host "目录已存在，跳过创建" }
 
+          # 逐个分卷流式上传
           $files = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*"
           foreach ($f in $files) {
             Write-Host "开始上传Alist：$($f.Name)"
