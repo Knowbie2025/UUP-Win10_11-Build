@@ -1,5 +1,7 @@
 name: Windows10_22H2_amd64
 
+# 包含8-9个版本 （家庭中文版、专业版、企业版、教育版、专业工作站版、专业教育版、企业多会话版、loT企业版、loT企业订阅版）
+
 on:
   workflow_dispatch:
   push:
@@ -11,7 +13,7 @@ permissions:
   contents: write
 
 env:
-  Build_VERSION: '19045.7417'
+  Build_VERSION: '19045.2269'
   FILE_NAME: Windows10_22H2_amd64
   FIX_RELEASE_TAG: Windows10_22H2_amd64
   ALI_YUN_DRIVE_UPLOAD_PATH: Windows_10_11_ISO/Windows10_22H2_amd64
@@ -59,7 +61,7 @@ jobs:
         shell: pwsh
         run: |
           $files = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*" | Select-Object -ExpandProperty Name
-          $md = "<details open>`n<summary>📦 各分卷压缩包名（下载至同一文件夹后解压即可）</summary>`n`n"
+          $md = "<details open>`n<summary>📦 各分卷压缩包名（家庭中文版、专业版、企业版、教育版等等-下载至同一文件夹后解压任一即可）</summary>`n`n"
           foreach($f in $files){ $md += "- $f`n" }
           $md += "`n</details>"
           echo "BODY_CONTENT<<EOF" >> $env:GITHUB_ENV
