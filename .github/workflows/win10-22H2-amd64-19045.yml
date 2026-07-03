@@ -28,26 +28,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      # 仅保留脚本链接替换，全部地址套ghfast加速镜像，移除容易报错的预下载步骤
-      - name: Fix UUP Script Dead Links With Ghfast Mirror
+      # 彻底修复脚本：全局精确替换所有旧域名地址，ghfast加速
+      - name: Full Fix UUP Download URLs
         shell: pwsh
         run: |
           $cmdPath = Join-Path $env:FILE_NAME "uup_download_windows.cmd"
-          $content = Get-Content $cmdPath -Raw -Encoding ASCII
-          # 转换器地址替换为加速镜像永久地址
-          $oldConv = "https://uupdump\.net/misc/uup-converter-wimlib-\d+\.7z"
-          $newConv = "https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/uup-converter-wimlib.7z"
-          $content = $content -replace $oldConv, $newConv
-          # aria2c 加速镜像
-          $oldAria = "https://uupdump\.net/misc/aria2c\.exe"
-          $newAria = "https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/aria2c.exe"
-          $content = $content -replace $oldAria, $newAria
-          # 7zr 加速镜像
-          $old7z = "https://uupdump\.net/misc/7zr\.exe"
-          $new7z = "https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/7zr.exe"
-          $content = $content -replace $old7z, $new7z
-          Set-Content $cmdPath $content -Encoding ASCII
-          Write-Host "✅ 脚本链接已替换为ghfast加速镜像，移除预下载步骤规避网络404"
+          $raw = Get-Content $cmdPath -Raw -Encoding ASCII
+          # 精确替换转换器地址（匹配任意数字版本后缀）
+          $raw = $raw -replace "https://uupdump\.net/misc/uup-converter-wimlib-\d+\.7z", "https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/uup-converter-wimlib.7z"
+          # 替换aria2c工具
+          $raw = $raw -replace "https://uupdump\.net/misc/aria2c\.exe", "https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/aria2c.exe"
+          # 替换7zr工具
+          $raw = $raw -replace "https://uupdump\.net/misc/7zr\.exe", "https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/7zr.exe"
+          # 兜底：把所有uupdump.net/misc全局替换为加速镜像前缀
+          $raw = $raw -replace "https://uupdump\.net/misc/", "https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/"
+          Set-Content $cmdPath -Value $raw -Encoding ASCII
+          Write-Host "✅ 全部uupdump.net/misc链接已替换为ghfast加速镜像"
 
       # UUP 编译打包 ISO
       - name: UUP dump build ISO
