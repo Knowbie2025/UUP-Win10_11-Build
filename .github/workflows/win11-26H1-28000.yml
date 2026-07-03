@@ -13,7 +13,7 @@ permissions:
   contents: write
 
 env:
-  Build_VERSION: '28000.2269'
+  Build_VERSION: '28000.2340'
   FILE_NAME: Windows11_26H1_amd64
   FIX_RELEASE_TAG: Windows11_26H1_amd64
   ALI_YUN_DRIVE_UPLOAD_PATH: Windows_10_11_ISO/Windows11_26H1_amd64
@@ -27,21 +27,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
-
-      # 修复UUP失效404下载链接（修正镜像单斜杠格式）+ aria2网络优化
-      - name: Fix UUP Download URL & Aria2 Retry
-        shell: pwsh
-        run: |
-          $cmdPath = "$env:FILE_NAME\uup_download_windows.cmd"
-          $rawContent = Get-Content $cmdPath -Raw
-          # 关键修正：shturl.cc后仅单斜杠 /
-          $rawContent = $rawContent -replace "https://uupdump.net/misc/uup-converter-wimlib-v122.7z", "https://shturl.cc/https://git.uupdump.net/uup-dump/misc/raw/branch/master/uup-converter-wimlib.7z"
-          $rawContent = $rawContent -replace "https://uupdump.net/misc/7zr.exe", "https://shturl.cc/https://git.uupdump.net/uup-dump/misc/raw/branch/master/7zr.exe"
-          $rawContent = $rawContent -replace "https://uupdump.net/misc/aria2c.exe", "https://shturl.cc/https://git.uupdump.net/uup-dump/misc/raw/branch/master/aria2c.exe"
-          # 增加aria2超时、重试参数，降低海外网络失败概率
-          $rawContent = $rawContent -replace "aria2c ", "aria2c --connect-timeout=60 --max-tries=10 "
-          $rawContent | Set-Content $cmdPath -Encoding ASCII
-          Write-Host "✅ UUP脚本下载链接与网络参数修复完成"
 
       # UUP 编译打包 ISO
       - name: UUP dump build ISO
@@ -65,7 +50,7 @@ jobs:
           choco install 7zip -y
           echo "${env:ProgramFiles}\\7-Zip" | Out-File -FilePath $env:GITHUB_PATH -Append
 
-      # 2000M分卷压缩
+      # 2000M 分卷压缩
       - name: Split Compress ZIP(1.95G/part)
         shell: cmd
         run: 7z a -tzip -v2000M %FIX_RELEASE_TAG%_%Build_VERSION%.zip %FILE_NAME%\*.iso -mx=6
@@ -110,11 +95,14 @@ jobs:
           $url = "https://ghfast.top/https://github.com/tickstep/aliyunpan/releases/download/v0.3.9/aliyunpan-v0.3.9-windows-x64.zip"
           Invoke-WebRequest -Uri $url -OutFile aliyunpan.zip -UseBasicParsing -TimeoutSec 180 -SkipCertificateCheck
           7z x aliyunpan.zip -oaliyunpan -spe -y
+          # 直接获取 exe 路径并写入环境变量
           $ALI_EXE = (Get-ChildItem ./aliyunpan -Recurse -Filter "aliyunpan.exe").FullName
+          # 关键修复：确保路径格式正确，且环境变量生效
           echo "ALI_EXE=$ALI_EXE" >> $env:GITHUB_ENV
+          # 直接打印路径，方便调试
           Write-Host "ALI_EXE path: $ALI_EXE"
 
-      # 阿里云盘登录 + 路径校验
+      # 阿里云盘登录 + 路径校验（修复命令调用问题）
       - name: Login to Aliyun Drive
         shell: pwsh
         run: |
@@ -125,6 +113,7 @@ jobs:
             dir ./aliyunpan -Recurse
             exit 1
           }
+          # 关键修复：使用 & 调用变量中的路径，避免被当作普通字符串
           & $ALI_EXE token set -RefreshToken "${{ secrets.ALI_REFRESH_TOKEN }}"
           & $ALI_EXE whoami
 
@@ -172,16 +161,19 @@ jobs:
           $pass = "${{ env.ALIST_PASS }}"
           $uploadPath = "/阿里云盘-Windows_10_11_ISO/${{ env.FIX_RELEASE_TAG }}"
 
+          # 登录获取Token
           $loginBody = @{username=$user;password=$pass} | ConvertTo-Json
           $loginRes = Invoke-RestMethod -Method Post -Uri "$baseUrl/api/auth/login" -Body $loginBody -ContentType "application/json"
           $token = $loginRes.data.token
           $header = @{Authorization="Bearer $token"}
 
+          # 自动创建远端文件夹
           try{
             $mkBody = @{path=$uploadPath} | ConvertTo-Json
             Invoke-RestMethod -Uri "$baseUrl/api/fs/mkdir" -Method Post -Headers $header -Body $mkBody -ContentType "application/json" | Out-Null
           }catch{ Write-Host "目录已存在，跳过创建" }
 
+          # 逐个分卷流式上传
           $files = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*"
           foreach ($f in $files) {
             Write-Host "开始上传Alist：$($f.Name)"
