@@ -28,33 +28,26 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      # 步骤1：全局替换脚本内全部失效下载URL
-      - name: Fix UUP Script Dead Links
+      # 仅保留脚本链接替换，全部地址套ghfast加速镜像，移除容易报错的预下载步骤
+      - name: Fix UUP Script Dead Links With Ghfast Mirror
         shell: pwsh
         run: |
           $cmdPath = Join-Path $env:FILE_NAME "uup_download_windows.cmd"
           $content = Get-Content $cmdPath -Raw -Encoding ASCII
-          # 替换转换器（匹配任意版本号）
-          $content = $content -replace "https://uupdump\.net/misc/uup-converter-wimlib-\d+\.7z", "https://git.uupdump.net/uup-dump/misc/raw/branch/master/uup-converter-wimlib.7z"
-          # 替换aria2c
-          $content = $content -replace "https://uupdump\.net/misc/aria2c\.exe", "https://git.uupdump.net/uup-dump/misc/raw/branch/master/aria2c.exe"
-          # 替换7zr
-          $content = $content -replace "https://uupdump\.net/misc/7zr\.exe", "https://git.uupdump.net/uup-dump/misc/raw/branch/master/7zr.exe"
+          # 转换器地址替换为加速镜像永久地址
+          $oldConv = "https://uupdump\.net/misc/uup-converter-wimlib-\d+\.7z"
+          $newConv = "https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/uup-converter-wimlib.7z"
+          $content = $content -replace $oldConv, $newConv
+          # aria2c 加速镜像
+          $oldAria = "https://uupdump\.net/misc/aria2c\.exe"
+          $newAria = "https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/aria2c.exe"
+          $content = $content -replace $oldAria, $newAria
+          # 7zr 加速镜像
+          $old7z = "https://uupdump\.net/misc/7zr\.exe"
+          $new7z = "https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/7zr.exe"
+          $content = $content -replace $old7z, $new7z
           Set-Content $cmdPath $content -Encoding ASCII
-          Write-Host "✅ URL替换完成"
-
-      # 步骤2：提前预下载全部依赖工具，脚本运行时直接跳过下载（兜底方案）
-      - name: Pre-Download Converter Tools
-        shell: pwsh
-        run: |
-          $targetDir = $env:FILE_NAME
-          # aria2c
-          Invoke-WebRequest -Uri "https://git.uupdump.net/uup-dump/misc/raw/branch/master/aria2c.exe" -OutFile "$targetDir\aria2c.exe" -UseBasicParsing -TimeoutSec 120
-          # 7zr
-          Invoke-WebRequest -Uri "https://git.uupdump.net/uup-dump/misc/raw/branch/master/7zr.exe" -OutFile "$targetDir\7zr.exe" -UseBasicParsing -TimeoutSec 120
-          # 转换工具压缩包
-          Invoke-WebRequest -Uri "https://git.uupdump.net/uup-dump/misc/raw/branch/master/uup-converter-wimlib.7z" -OutFile "$targetDir\files\uup-converter-wimlib.7z" -UseBasicParsing -TimeoutSec 180
-          Write-Host "✅ 转换工具预下载完成，脚本不会再触发404下载"
+          Write-Host "✅ 脚本链接已替换为ghfast加速镜像，移除预下载步骤规避网络404"
 
       # UUP 编译打包 ISO
       - name: UUP dump build ISO
@@ -171,8 +164,8 @@ jobs:
         run: |
           $ErrorActionPreference = "Continue"
           $baseUrl = "${{ env.ALIST_URL }}"
-          $user = "${{ env.ALIST_USER }}"
-          $pass = "${{ env.ALIST_PASS }}"
+          $user = "${{ secrets.ALIST_USER }}"
+          $pass = "${{ secrets.ALIST_PASS }}"
           $uploadPath = "/阿里云盘-Windows_10_11_ISO/${{ env.FIX_RELEASE_TAG }}"
 
           # 登录获取Token
