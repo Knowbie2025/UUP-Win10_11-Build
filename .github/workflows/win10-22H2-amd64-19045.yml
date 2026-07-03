@@ -28,25 +28,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      # 仅修改脚本内部URL，无额外网络下载，彻底规避连接拒绝/404
-      - name: Patch UUP Script All Dead Links With Ghfast Global Mirror
-        shell: pwsh
-        run: |
-          $cmdPath = Join-Path $env:FILE_NAME "uup_download_windows.cmd"
-          $scriptText = Get-Content $cmdPath -Raw -Encoding ASCII
-
-          # 1. 精确匹配带版本废弃转换器地址 v122
-          $scriptText = $scriptText -replace "https://uupdump\.net/misc/uup-converter-wimlib-\d+\.7z", "https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/uup-converter-wimlib.7z"
-          # 2. 替换工具exe下载地址
-          $scriptText = $scriptText -replace "https://uupdump\.net/misc/aria2c\.exe", "https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/aria2c.exe"
-          $scriptText = $scriptText -replace "https://uupdump\.net/misc/7zr\.exe", "https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/7zr.exe"
-          # 3. 兜底全局替换所有uupdump.net/misc 前缀，防止遗漏隐藏旧链接
-          $scriptText = $scriptText -replace "https://uupdump\.net/misc/", "https://ghfast.top/https://git.uupdump.net/uup-dump/misc/raw/branch/master/"
-
-          # 写回脚本，ASCII编码避免cmd乱码
-          Set-Content -Path $cmdPath -Value $scriptText -Encoding ASCII
-          Write-Host "✅ 脚本内全部失效URL已替换为ghfast全球加速镜像，无额外网络请求"
-
       # UUP 编译打包 ISO
       - name: UUP dump build ISO
         shell: cmd
@@ -54,21 +35,18 @@ jobs:
           cd %FILE_NAME%
           dir
           uup_download_windows.cmd
-
       - name: List ISO Files
         shell: cmd
         run: |
           cd %FILE_NAME%
           dir *.iso
           cd ..
-
       # 安装 7zip
       - name: Install 7-Zip via Powershell
         shell: pwsh
         run: |
           choco install 7zip -y
           echo "${env:ProgramFiles}\\7-Zip" | Out-File -FilePath $env:GITHUB_PATH -Append
-
       # 2000M 分卷压缩
       - name: Split Compress ZIP(1.95G/part)
         shell: cmd
@@ -86,7 +64,6 @@ jobs:
           echo "BODY_CONTENT<<EOF" >> $env:GITHUB_ENV
           echo $md >> $env:GITHUB_ENV
           echo "EOF" >> $env:GITHUB_ENV
-
       # 上传制品缓存
       - name: Upload Split Zip Artifact
         uses: actions/upload-artifact@v6
@@ -94,7 +71,6 @@ jobs:
           name: ISO-Split-Zip-Pack
           path: |
             ${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*
-
       # 创建 Github Release
       - name: Create Github Release
         uses: softprops/action-gh-release@v2
@@ -116,14 +92,12 @@ jobs:
           7z x aliyunpan.zip -oaliyunpan -spe -y
           $ALI_EXE = (Get-ChildItem ./aliyunpan -Recurse -Filter "aliyunpan.exe").FullName
           echo "ALI_EXE=$ALI_EXE" >> $env:GITHUB_ENV
-
-      # 阿里云盘 - Refresh Token 登录
+      # 阿里云盘 - Refresh Token 登录（精简稳定版，不再手动写配置文件）
       - name: Login to Aliyun Drive
         shell: pwsh
         run: |
           & "$env:ALI_EXE" token set -t "${{ secrets.ALI_REFRESH_TOKEN }}"
           & "$env:ALI_EXE" whoami
-
       # 阿里云盘自动建目录
       - name: Mkdir Aliyun Remote Dir
         shell: pwsh
@@ -136,7 +110,6 @@ jobs:
             & "$env:ALI_EXE" mkdir -p "$remotePath"
             Start-Sleep 2
           }
-
       # 阿里云盘分卷上传（带重试）
       - name: Upload to Aliyun Drive
         shell: pwsh
@@ -155,29 +128,25 @@ jobs:
             }
             Start-Sleep 3
           }
-
       # Alist 上传
       - name: Upload to Alist
         shell: pwsh
         run: |
           $ErrorActionPreference = "Continue"
           $baseUrl = "${{ env.ALIST_URL }}"
-          $user = "${{ secrets.ALIST_USER }}"
-          $pass = "${{ secrets.ALIST_PASS }}"
+          $user = "${{ env.ALIST_USER }}"
+          $pass = "${{ env.ALIST_PASS }}"
           $uploadPath = "/阿里云盘-Windows_10_11_ISO/${{ env.FIX_RELEASE_TAG }}"
-
           # 登录获取Token
           $loginBody = @{username=$user;password=$pass} | ConvertTo-Json
           $loginRes = Invoke-RestMethod -Method Post -Uri "$baseUrl/api/auth/login" -Body $loginBody -ContentType "application/json"
           $token = $loginRes.data.token
           $header = @{Authorization="Bearer $token"}
-
           # 自动创建远端文件夹
           try{
             $mkBody = @{path=$uploadPath} | ConvertTo-Json
             Invoke-RestMethod -Uri "$baseUrl/api/fs/mkdir" -Method Post -Headers $header -Body $mkBody -ContentType "application/json" | Out-Null
           }catch{ Write-Host "目录已存在，跳过创建" }
-
           # 逐个分卷流式上传
           $files = Get-ChildItem "${{ env.FIX_RELEASE_TAG }}_${{ env.Build_VERSION }}.zip.*"
           foreach ($f in $files) {
@@ -191,7 +160,6 @@ jobs:
             Invoke-RestMethod -Uri "$baseUrl/api/fs/put" -Method Put -Headers $putHeader -InFile $f.FullName
             Start-Sleep 3
           }
-
       # 清理临时文件
       - name: Clean Workspace
         shell: pwsh
