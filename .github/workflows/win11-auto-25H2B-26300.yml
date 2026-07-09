@@ -1,0 +1,59 @@
+name: Auto Build win11-auto-25H2B-26300 ISO & Release Upload
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+env:
+  TARGET_BUILD: "26300"
+  ARCH: "amd64"
+  LANG: "zh-cn"
+  OS_TYPE: "win11"
+  OS_BRANCH: "25H2B"
+
+jobs:
+  build_task:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install 7-Zip & Aria2 via Chocolatey
+        run: |
+          choco install 7zip aria2 -y --no-progress
+          echo "$env:ProgramFiles\7-Zip" | Out-File $env:GITHUB_PATH
+
+      - name: Fetch Custom UUP Script Package
+        run: .\scripts\fetch-uup-latest.ps1
+
+      - name: Build Full Multi-SKU ISO
+        run: .\scripts\build-iso.ps1
+
+      - name: Split ISO To Multi-Volume Zip
+        run: .\scripts\split-archive.ps1
+
+      - name: Create GitHub Release & Upload Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.OS_TYPE }}_auto_${{ env.OS_BRANCH }}_${{ env.TARGET_BUILD }}_${{ env.ARCH }}
+          name: Release ${{ env.OS_TYPE }}-auto-${{ env.OS_BRANCH }}-${{ env.TARGET_BUILD }}-${{ env.ARCH }}
+          body: |
+            ## 自动构建 ${{ env.OS_TYPE }} ${{ env.OS_BRANCH }} Build ${{ env.TARGET_BUILD }}.${{ env.LATEST_SUB_BUILD }}
+            ### 内置全部SKU版本：
+            家庭中文版、专业版、专业工作站、专业教育、教育版、企业多会话、IoT企业版、IoT企业订阅版
+            ### 镜像特性：
+            - 简体中文系统
+            - 集成全部累积更新
+            - 自动组件清理
+            - 预装.NET Framework 3.5
+            - 不使用ESD固实压缩
+            ### 使用说明：
+            将所有 .zip.001 .zip.002 ... 分卷放到同一文件夹，右键任意一个分卷解压即可得到完整ISO
+          files: |
+            output/*.zip.*
+          draft: false
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
