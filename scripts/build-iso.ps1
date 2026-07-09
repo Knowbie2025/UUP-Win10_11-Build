@@ -1,10 +1,6 @@
 # build-iso.ps1
 Set-Location "uup-work"
-
-# 执行UUP官方转换脚本生成ISO
 .\uup_download_windows.cmd
-
-# 创建输出目录并移动镜像
 if (-not (Test-Path "../output")) { New-Item "../output" -ItemType Directory -Force | Out-Null }
 $isoFile = Get-ChildItem -Filter *.iso | Select-Object -First 1
 if ($isoFile) {
