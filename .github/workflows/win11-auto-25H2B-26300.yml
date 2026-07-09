@@ -20,18 +20,31 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # 安装Node用于CF人机验证绕过
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install CF bypass 无头浏览器依赖
+        run: |
+          npm init -y
+          npm install puppeteer-core chrome-cf-bypass
+
+      # 安装7zip、下载工具
       - name: Install 7-Zip & Aria2 via Chocolatey
         run: |
           choco install 7zip aria2 -y --no-progress
           echo "$env:ProgramFiles\7-Zip" | Out-File $env:GITHUB_PATH
 
+      # 修正：脚本名统一为 fetch-uup-online-auto.ps1
       - name: Fetch Custom UUP Script Package
-        run: .\scripts\fetch-uup-latest.ps1
+        run: .\scripts\fetch-uup-online-auto.ps1
 
       - name: Build Full Multi-SKU ISO
         run: .\scripts\build-iso.ps1
 
-      - name: Split ISO To Multi-Volume Zip
+      - name: Split ISO To Multi-Volume Zip (2000MB)
         run: .\scripts\split-archive.ps1
 
       - name: Create GitHub Release & Upload Assets
