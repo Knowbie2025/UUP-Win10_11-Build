@@ -38,15 +38,6 @@ jobs:
           choco install 7zip aria2 -y --no-progress
           echo "$env:ProgramFiles\7-Zip" | Out-File $env:GITHUB_PATH
 
-      # 新增连通性检测
-      - name: Test UUP Dump API Connectivity
-        run: |
-          $testUrls = @("https://uupdump.net","https://uupdump.myshell.xyz")
-          foreach($url in $testUrls){
-            Write-Host "测试连通 $url"
-            Invoke-WebRequest -Uri "$url/api/getknownbuilds.php" -UseBasicParsing -TimeoutSec 15
-          }
-
       - name: Set Build Environment Variable
         run: |
           echo "TARGET_BUILD=${{ matrix.config.build }}" >> $env:GITHUB_ENV
