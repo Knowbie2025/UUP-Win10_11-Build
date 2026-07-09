@@ -9,6 +9,6 @@ if (-not $isoFile) {
 $baseName = $isoFile.BaseName
 $zipFullPath = Join-Path $outputDir "$baseName.zip"
 
-# 分卷大小4GB，生成 xxx.zip.001 .002 .003 ...
-7z a -v4g "$zipFullPath" $isoFile.FullName -y
-Write-Host "ISO分卷打包完成，分卷存放于 $outputDir"
+# -v2g 代表单分卷最大2000MB
+7z a -v2g "$zipFullPath" $isoFile.FullName -y
+Write-Host "ISO分卷打包完成，单卷2000MB，分卷存放于 $outputDir"
