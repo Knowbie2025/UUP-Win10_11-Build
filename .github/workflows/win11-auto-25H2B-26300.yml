@@ -17,23 +17,38 @@ jobs:
   build_task:
     runs-on: windows-latest
     steps:
+      # 拉取仓库代码
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # 安装依赖：7zip、aria2
       - name: Install 7-Zip & Aria2 via Chocolatey
         run: |
           choco install 7zip aria2 -y --no-progress
           echo "$env:ProgramFiles\7-Zip" | Out-File $env:GITHUB_PATH
 
+      # 新增：提前测试UUP域名连通性，提前暴露404/网络问题
+      - name: Test UUP Dump API Connectivity
+        run: |
+          $testUrls = @("https://uupdump.net","https://uupdump.myshell.xyz")
+          foreach($url in $testUrls){
+            Write-Host "测试连通 $url"
+            Invoke-WebRequest -Uri "$url/api/getknownbuilds.php" -UseBasicParsing -TimeoutSec 15
+          }
+
+      # 拉取匹配配置的UUP下载脚本包（修复后的ps1）
       - name: Fetch Custom UUP Script Package
         run: .\scripts\fetch-uup-latest.ps1
 
+      # 运行UUP脚本下载源并生成全SKU ISO
       - name: Build Full Multi-SKU ISO
         run: .\scripts\build-iso.ps1
 
+      # 分割ISO为2GB分卷zip.001 .002 ...
       - name: Split ISO To Multi-Volume Zip
         run: .\scripts\split-archive.ps1
 
+      # 自动创建Release并上传所有分卷文件
       - name: Create GitHub Release & Upload Assets
         uses: softprops/action-gh-release@v2
         with:
