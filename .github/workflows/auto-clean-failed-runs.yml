@@ -1,0 +1,27 @@
+name: Auto Clean Failed Workflow Runs
+# 定时触发：每天凌晨2点执行；同时支持手动点击运行
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+# 必须授予actions写入权限，否则无法删除运行记录
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  clean-failed:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete only failed workflow runs
+        uses: Mattraks/delete-workflow-runs@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          # 仅删除失败状态的运行：success取消、in_progress跳过
+          status: failure
+          # 保留最近5条失败记录，避免全部删光无法排查问题
+          keep_minimum_runs: 5
+          # 超过7天的失败记录强制清理（按需修改天数）
+          retain_days: 7
