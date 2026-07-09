@@ -1,0 +1,88 @@
+name: Batch Build All Windows Versions Matrix
+on:
+  # 每日UTC2点=国内早10点自动全量构建
+  schedule:
+    - cron: '0 2 * * *'
+  # 手动一键批量构建所有版本
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  multi_build_matrix:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false # 某版本构建失败不中断其他任务
+      matrix:
+        config:
+          # 完全对应你截图所有yml文件名，参数拆分版本/架构/系统分支
+          # Win10 19045 22H2
+          - { file: "win10-22H2-amd64-19045.yml", os: "win10", branch: "22H2", arch: "amd64", build: "19045" }
+          - { file: "win10-22H2-arm64-19045.yml", os: "win10", branch: "22H2", arch: "arm64", build: "19045" }
+          - { file: "win10-22H2-x86-19045.yml", os: "win10", branch: "22H2", arch: "x86", build: "19045" }
+          # Win10 17763 v1809
+          - { file: "win10-v1809-amd64-17763.yml", os: "win10", branch: "v1809", arch: "amd64", build: "17763" }
+          - { file: "win10-v1809-x86-17763.yml", os: "win10", branch: "v1809", arch: "x86", build: "17763" }
+          # Win11 稳定/预览分支
+          - { file: "win11-22H2-22621.yml", os: "win11", branch: "22H2", arch: "amd64", build: "22621" }
+          - { file: "win11-23H2-22631.yml", os: "win11", branch: "23H2", arch: "amd64", build: "22631" }
+          - { file: "win11-24H2-26100.yml", os: "win11", branch: "24H2", arch: "amd64", build: "26100" }
+          - { file: "win11-25H2-26200.yml", os: "win11", branch: "25H2", arch: "amd64", build: "26200" }
+          - { file: "win11-25H2B-26300.yml", os: "win11", branch: "25H2B", arch: "amd64", build: "26300" }
+          - { file: "win11-26H1-28000.yml", os: "win11", branch: "26H1", arch: "amd64", build: "28000" }
+          - { file: "win11-26H2-28020.yml", os: "win11", branch: "26H2", arch: "amd64", build: "28020" }
+          - { file: "win11-26H2B-28120.yml", os: "win11", branch: "26H2B", arch: "amd64", build: "28120" }
+          # Canary开发通道最高版本
+          - { file: "win11-Canary-max.yml", os: "win11", branch: "Canary", arch: "amd64", build: "max" }
+    env:
+      LANG: "zh-cn"
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install 7-Zip & Aria2 via Chocolatey
+        run: |
+          choco install 7zip aria2 -y --no-progress
+          echo "$env:ProgramFiles\7-Zip" | Out-File $env:GITHUB_PATH
+
+      # 传递矩阵参数给脚本
+      - name: Set Build Env
+        run: |
+          echo "TARGET_BUILD=${{ matrix.config.build }}" >> $env:GITHUB_ENV
+          echo "ARCH=${{ matrix.config.arch }}" >> $env:GITHUB_ENV
+          echo "OS_BRANCH=${{ matrix.config.branch }}" >> $env:GITHUB_ENV
+          echo "OS_TYPE=${{ matrix.config.os }}" >> $env:GITHUB_ENV
+
+      - name: Fetch Custom UUP Script Package
+        run: .\scripts\fetch-uup-latest.ps1
+
+      - name: Build Full Multi-SKU ISO
+        run: .\scripts\build-iso.ps1
+
+      - name: Split ISO To Multi-Volume Zip
+        run: .\scripts\split-archive.ps1
+
+      # 分版本独立Release，标签区分系统、架构、Build号
+      - name: Create GitHub Release & Upload Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ matrix.config.os }}_${{ matrix.config.branch }}_${{ env.TARGET_BUILD }}_${{ env.ARCH }}
+          name: Release ${{ matrix.config.os }} ${{ matrix.config.branch }} Build ${{ env.TARGET_BUILD }} ${{ env.ARCH }}
+          body: |
+            ## 自动构建 ${{ matrix.config.os }} ${{ matrix.config.branch }} Build ${{ env.TARGET_BUILD }}.${{ env.LATEST_SUB_BUILD }}
+            ### 内置全部SKU版本：
+            家庭中文版、专业版、专业工作站、专业教育、教育版、企业多会话、IoT企业版、IoT企业订阅版
+            ### 镜像特性：
+            - 简体中文系统
+            - 集成全部累积更新
+            - 自动组件清理
+            - 预装.NET Framework 3.5
+            - 不使用ESD固实压缩
+            ### 使用说明：
+            将所有 .zip.001 .zip.002 ... 分卷放到同一文件夹，右键任意一个分卷解压即可得到完整ISO
+          files: |
+            output/*.zip.*
+          draft: false
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
