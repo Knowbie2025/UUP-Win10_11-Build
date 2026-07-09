@@ -4,7 +4,7 @@ $arch = $env:ARCH
 $lang = $env:LANG
 $apiBase = "https://uup.rg-adguard.net"
 
-# Step1：调用node脚本无头浏览器过CF验证，获取有效访问凭证
+# Step1：调用node无头浏览器过CF验证，获取有效访问凭证
 $nodeScript = @"
 const puppeteer = require('puppeteer-core');
 const cfBypass = require('chrome-cf-bypass');
@@ -15,30 +15,26 @@ const cfBypass = require('chrome-cf-bypass');
     });
     const page = await browser.newPage();
     await page.goto('$apiBase');
-    // 自动等待CF验证完成
     await cfBypass.waitCfClearance(page, 30000);
     const cookies = await page.cookies();
     const userAgent = await page.evaluate(() => navigator.userAgent);
     await browser.close();
-    // 输出凭证给PowerShell
     console.log(JSON.stringify({cookies,userAgent}));
 })();
 "@
-# 临时写入node执行文件
 $nodeScript | Out-File "cf-bypass-tmp.js" -Encoding utf8
-# 运行node拿到CF合法凭证
 $cfResultRaw = node cf-bypass-tmp.js
 Remove-Item "cf-bypass-tmp.js" -Force
 $cfResult = $cfResultRaw | ConvertFrom-Json
 
-# 拼接Cookie请求头
+# 拼接请求头
 $cookieHeader = $cfResult.cookies | ForEach-Object { "$($_.name)=$($_.value)" } -Join "; "
 $headers = @{
     "User-Agent" = $cfResult.userAgent
     "Cookie" = $cookieHeader
 }
 
-# Step2：携带CF合法凭证请求UUP API，获取Build列表
+# Step2：携带CF凭证查询Build列表
 $apiUrl = "$apiBase/api/v1/builds?search=$targetBuild&arch=$arch"
 $response = Invoke-RestMethod -Uri $apiUrl -Headers $headers -UseBasicParsing -TimeoutSec 40
 
@@ -52,7 +48,7 @@ $env:LATEST_SUB_BUILD = $latestBuild.buildrev
 $updateId = $latestBuild.updatedid
 Write-Host "✅ 获取在线最新版本: $targetBuild.$($latestBuild.buildrev)"
 
-# POST下载包参数（全SKU简体中文配置）
+# 下载包参数（全SKU简体中文）
 $postData = @{
     id                     = $updateId
     lang                   = "zh-cn"
@@ -71,7 +67,7 @@ $postData = @{
     add_edition_iotentsub      = 1
 }
 
-# Step3：携带CF凭证下载UUP脚本压缩包
+# Step3：在线下载UUP脚本压缩包
 $downloadUrl = "$apiBase/api/v1/downloadpackage"
 Invoke-WebRequest `
     -Uri $downloadUrl `
