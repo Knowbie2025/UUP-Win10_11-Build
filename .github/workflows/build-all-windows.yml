@@ -1,9 +1,7 @@
 name: Batch Build All Auto Windows Versions Matrix
 on:
-  # 每日UTC凌晨2点=国内早10点自动全量构建
   schedule:
     - cron: '0 2 * * *'
-  # 手动一键批量构建所有版本
   workflow_dispatch:
   push:
     branches: [ main ]
@@ -12,17 +10,14 @@ jobs:
   multi_build_matrix:
     runs-on: windows-latest
     strategy:
-      fail-fast: false # 单个版本失败不中断其余构建任务
+      fail-fast: false
       matrix:
         config:
-          # Win10 22H2
           - { file: "win10-auto-22H2-amd64-19045.yml", os: "win10", branch: "22H2", arch: "amd64", build: "19045" }
           - { file: "win10-auto-22H2-arm64-19045.yml", os: "win10", branch: "22H2", arch: "arm64", build: "19045" }
           - { file: "win10-auto-22H2-x86-19045.yml", os: "win10", branch: "22H2", arch: "x86", build: "19045" }
-          # Win10 v1809
           - { file: "win10-auto-v1809-amd64-17763.yml", os: "win10", branch: "v1809", arch: "amd64", build: "17763" }
           - { file: "win10-auto-v1809-x86-17763.yml", os: "win10", branch: "v1809", arch: "x86", build: "17763" }
-          # Win11 各稳定/预览分支
           - { file: "win11-auto-22H2-22621.yml", os: "win11", branch: "22H2", arch: "amd64", build: "22621" }
           - { file: "win11-auto-23H2-22631.yml", os: "win11", branch: "23H2", arch: "amd64", build: "22631" }
           - { file: "win11-auto-24H2-26100.yml", os: "win11", branch: "24H2", arch: "amd64", build: "26100" }
@@ -31,7 +26,6 @@ jobs:
           - { file: "win11-auto-26H1-28000.yml", os: "win11", branch: "26H1", arch: "amd64", build: "28000" }
           - { file: "win11-auto-26H2-28020.yml", os: "win11", branch: "26H2", arch: "amd64", build: "28020" }
           - { file: "win11-auto-26H2B-28120.yml", os: "win11", branch: "26H2B", arch: "amd64", build: "28120" }
-          # Canary最高预览通道
           - { file: "win11-auto-Canary-max.yml", os: "win11", branch: "Canary", arch: "amd64", build: "max" }
     env:
       LANG: "zh-cn"
@@ -44,7 +38,15 @@ jobs:
           choco install 7zip aria2 -y --no-progress
           echo "$env:ProgramFiles\7-Zip" | Out-File $env:GITHUB_PATH
 
-      # 注入矩阵参数传递给脚本
+      # 新增连通性检测
+      - name: Test UUP Dump API Connectivity
+        run: |
+          $testUrls = @("https://uupdump.net","https://uupdump.myshell.xyz")
+          foreach($url in $testUrls){
+            Write-Host "测试连通 $url"
+            Invoke-WebRequest -Uri "$url/api/getknownbuilds.php" -UseBasicParsing -TimeoutSec 15
+          }
+
       - name: Set Build Environment Variable
         run: |
           echo "TARGET_BUILD=${{ matrix.config.build }}" >> $env:GITHUB_ENV
@@ -61,7 +63,6 @@ jobs:
       - name: Split ISO To Multi-Volume Zip
         run: .\scripts\split-archive.ps1
 
-      # Release标签、名称同步适配-auto-命名规范
       - name: Create GitHub Release & Upload Assets
         uses: softprops/action-gh-release@v2
         with:
