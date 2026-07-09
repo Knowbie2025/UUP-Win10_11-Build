@@ -1,39 +1,36 @@
-# fetch-uup-latest.ps1
-# 读取环境变量
+# fetch-uup-latest.ps1 新版API重试版
 $targetBuild = $env:TARGET_BUILD
 $arch = $env:ARCH
 $lang = $env:LANG
 
-# 双域名自动容错，主站失败切镜像
+# 更换为当前可用UUP镜像新域名
 $apiDomains = @(
-    "https://uupdump.net",
-    "https://uupdump.myshell.xyz"
+    "https://uup.rg-adguard.net"
 )
 $response = $null
 
-# 循环查询Build接口
 foreach ($domain in $apiDomains) {
     try {
-        $apiUrl = "$domain/api/getknownbuilds.php?search=$targetBuild"
-        Write-Host "正在尝试接口：$apiUrl"
+        # rg-adguard使用全新接口，不再使用旧getknownbuilds.php
+        $apiUrl = "$domain/api/v1/builds?search=$targetBuild&arch=$arch"
+        Write-Host "正在尝试新版接口：$apiUrl"
         $response = Invoke-RestMethod -Uri $apiUrl -UseBasicParsing -TimeoutSec 30
         break
     }
     catch {
-        Write-Warning "当前域名访问失败，10秒后切换备用域名：$_"
+        Write-Warning "当前域名访问失败，10秒后重试：$_"
         Start-Sleep 10
         continue
     }
 }
 
-# 全部域名访问失败直接退出
 if (-not $response) {
-    Write-Error "所有UUP Dump域名访问全部404/超时，任务终止"
+    Write-Error "所有新版UUP域名访问全部失败，任务终止"
     exit 1
 }
 
-# 筛选对应架构最新版本
-$latestBuild = $response.builds | Where-Object { $_.arch -eq $arch } | Sort-Object buildrev -Descending | Select-Object -First 1
+# 筛选最新build
+$latestBuild = $response | Sort-Object buildrev -Descending | Select-Object -First 1
 if (-not $latestBuild) {
     Write-Error "未找到 Build:$targetBuild 架构:$arch 的镜像资源"
     exit 1
@@ -44,7 +41,7 @@ $updateId = $latestBuild.updatedid
 Write-Host "检测到最新版本：$targetBuild.$($latestBuild.buildrev)"
 Write-Host "Update ID：$updateId"
 
-# POST请求参数（全SKU简体中文配置）
+# POST生成下载包参数不变
 $postData = @{
     id                     = $updateId
     lang                   = "zh-cn"
@@ -63,11 +60,11 @@ $postData = @{
     add_edition_iotentsub      = 1
 }
 
-# 下载UUP脚本压缩包（双域名重试）
+# 新版下载接口
 $downloadSuccess = $false
 foreach ($domain in $apiDomains) {
     try {
-        $downloadUrl = "$domain/api/getdownloadpackage.php"
+        $downloadUrl = "$domain/api/v1/downloadpackage"
         Write-Host "开始下载UUP脚本包：$downloadUrl"
         Invoke-WebRequest `
             -Uri $downloadUrl `
@@ -80,13 +77,13 @@ foreach ($domain in $apiDomains) {
         break
     }
     catch {
-        Write-Warning "脚本包下载失败，切换备用域名重试：$_"
+        Write-Warning "脚本包下载失败，重试：$_"
         Start-Sleep 10
         continue
     }
 }
 if (-not $downloadSuccess) {
-    Write-Error "所有域名均无法下载UUP脚本包，任务退出"
+    Write-Error "新版域名无法下载UUP脚本包，任务退出"
     exit 1
 }
 
