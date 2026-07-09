@@ -33,11 +33,24 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # 新增Node环境用于CF绕过
+      - name: Setup Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: 20
+
+      - name: Install CF bypass puppeteer
+        run: |
+          npm init -y
+          npm install puppeteer-core chrome-cf-bypass
+
+      # 安装压缩下载工具
       - name: Install 7-Zip & Aria2 via Chocolatey
         run: |
           choco install 7zip aria2 -y --no-progress
           echo "$env:ProgramFiles\7-Zip" | Out-File $env:GITHUB_PATH
 
+      # 注入版本参数
       - name: Set Build Environment Variable
         run: |
           echo "TARGET_BUILD=${{ matrix.config.build }}" >> $env:GITHUB_ENV
@@ -45,8 +58,9 @@ jobs:
           echo "OS_BRANCH=${{ matrix.config.branch }}" >> $env:GITHUB_ENV
           echo "OS_TYPE=${{ matrix.config.os }}" >> $env:GITHUB_ENV
 
+      # 在线自动绕过CF拉取UUP
       - name: Fetch Custom UUP Script Package
-        run: .\scripts\fetch-uup-latest.ps1
+        run: .\scripts\fetch-uup-online-auto.ps1
 
       - name: Build Full Multi-SKU ISO
         run: .\scripts\build-iso.ps1
@@ -54,6 +68,7 @@ jobs:
       - name: Split ISO To Multi-Volume Zip
         run: .\scripts\split-archive.ps1
 
+      # 发布Release
       - name: Create GitHub Release & Upload Assets
         uses: softprops/action-gh-release@v2
         with:
