@@ -15,6 +15,10 @@ jobs:
           fetch-depth: 0
           fetch-tags: false
 
+      # 关键1：先拉取远程最新代码，保证本地和远程完全同步
+      - name: Pull latest remote code
+        run: git pull origin main --rebase
+
       - name: Full Overwrite Unzip Logic
         run: |
           for zipfile in ./*.zip; do
@@ -22,15 +26,18 @@ jobs:
             foldername=$(basename "$zipfile" .zip)
             echo "===== 处理压缩包 $zipfile，目标目录 ./$foldername ====="
             
-            # 1. 本地彻底删除旧目录（清空所有历史文件）
+            # 1. 本地彻底删除旧目录
             if [ -d "$foldername" ]; then
               echo "删除原有完整目录 $foldername"
               rm -rf "$foldername"
             fi
             mkdir -p "$foldername"
 
-            # 2. 解压全部文件，强制覆盖
+            # 2. 解压全部文件
             unzip -o "$zipfile" -d "$foldername"
+
+            # 强制刷新所有文件修改时间，让GitHub显示最新提交时间
+            find "$foldername" -type f -exec touch {} \;
             
             # 3. 删除上传的zip包
             rm -f "$zipfile"
@@ -43,14 +50,14 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global push.default current
 
+      # 关键2：git add --all 追踪所有删除、新增、修改
       - name: Stage all changes (包含删除的旧文件)
         run: |
-          # --update 自动识别已删除、新增、修改的文件
-          git add --update .
-          git add .
+          git add --all
+          # 判断是否有变更
           if git diff --cached --quiet; then
             echo "无文件变更，跳过提交"
           else
-            git commit -m "Auto unzip & fully overwrite folder, clear old files"
+            git commit -m "Auto unzip & fully overwrite folder, clear all old files"
             git push origin HEAD:refs/heads/main --force-with-lease
           fi
