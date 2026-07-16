@@ -1,4 +1,4 @@
-name: Auto Unzip Full Overwrite All Files
+name: Auto Unzip Full Overwrite With Timestamp
 on:
   push:
     branches: [ main ]
@@ -22,21 +22,18 @@ jobs:
             foldername=$(basename "$zipfile" .zip)
             echo "===== 处理 $zipfile 目标目录 ./$foldername ====="
 
-            # ========== 核心改动：告诉Git删除整个目录，再重建 ==========
+            # 从Git版本库标记删除整个旧目录
             if [ -d "$foldername" ]; then
-              # 先git rm 从版本库标记删除，不是仅本地删
               git rm -rf "$foldername"
-              echo "Git标记删除旧目录 $foldername"
+              echo "Git 删除旧目录 $foldername"
             fi
 
-            # 新建目录并解压
             mkdir -p "$foldername"
             unzip -o "$zipfile" -d "$foldername"
 
-            # 强制修改所有文件时间，强制产生内容变更
-            find "$foldername" -type f -exec touch {} \;
-
-            # 删除根目录zip包
+            # 关键：生成唯一时间戳文件，强制产生文件变更
+            date +"%Y-%m-%d %H:%M:%S" > "$foldername/_auto_update_timestamp.txt"
+            
             rm -f "$zipfile"
             echo "===== $zipfile 解压完成 ====="
           done
@@ -52,6 +49,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "无变更，跳过提交"
           else
-            git commit -m "Full overwrite: delete old dir & re-unzip all files"
+            git commit -m "Full overwrite: delete old dir + add timestamp mark"
             git push origin HEAD:refs/heads/main --force-with-lease
           fi
