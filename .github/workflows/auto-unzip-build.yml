@@ -2,9 +2,7 @@ name: 上传Zip/修改auto-unzip-build.yml自动构建
 on:
   push:
     paths:
-      # 上传根目录zip触发
       - "*.zip"
-      # 仅修改这一个yml文件才触发
       - ".github/workflows/auto-unzip-build.yml"
 
 jobs:
@@ -17,7 +15,24 @@ jobs:
       - name: 删除旧目录并解压新版压缩包
         shell: powershell
         run: |
-          $root=$env:GITHUB_WORKSPACE;Get-ChildItem $root -Filter *.zip|%{$z=$_.FullName;$d=$_.BaseName;$out="$root\$d";if(Test-Path $out){Remove-Item $out -Recurse -Force};New-Item $out -Dir -Force;Expand-Archive $z $out -Force;Remove-Item $z -Force}
+          $root = $env:GITHUB_WORKSPACE
+          $zipList = Get-ChildItem -Path $root -Filter *.zip
+          foreach ($zip in $zipList) {
+            $zipFull = $zip.FullName
+            $folderName = $zip.BaseName
+            $targetPath = Join-Path -Path $root -ChildPath $folderName
+
+            # 删除旧文件夹
+            if (Test-Path -Path $targetPath) {
+              Remove-Item -Path $targetPath -Recurse -Force
+            }
+            # 标准完整参数创建目录，不用简写 -Dir
+            New-Item -Path $targetPath -ItemType Directory -Force | Out-Null
+            # 解压
+            Expand-Archive -Path $zipFull -DestinationPath $targetPath -Force
+            # 清理zip
+            Remove-Item -Path $zipFull -Force
+          }
 
       - name: 运行UUP构建脚本
         shell: cmd
