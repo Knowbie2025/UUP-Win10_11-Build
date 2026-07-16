@@ -9,14 +9,12 @@ jobs:
   unzip_job:
     runs-on: ubuntu-latest
     steps:
-      # 修复点1：明确指定拉取main分支，分离tag与分支
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
-          # 关键：只拉取分支，不下载tags，避免同名冲突
-          fetch-tags: false
+          fetch-tags: false # 不下载任何tag，从源头规避同名冲突
 
       - name: Unzip all zip to repo root
         run: |
@@ -32,7 +30,6 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          # 修复点2：设置push默认推送当前分支，消除refspec歧义
           git config --global push.default current
 
       - name: Commit & Push Unzipped Files
@@ -42,6 +39,6 @@ jobs:
             echo "无解压文件变更，跳过提交"
           else
             git commit -m "Auto unzip root zip file from push"
-            # 修复点3：显式指定推送本地main到远程main，杜绝歧义
-            git push origin HEAD:main --force-with-lease
+            # 强制指定推送本地HEAD到远程main分支，绕过tag歧义
+            git push origin HEAD:refs/heads/main --force-with-lease
           fi
