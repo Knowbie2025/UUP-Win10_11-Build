@@ -1,17 +1,6 @@
-name: Windows11_24H2_amd64
-
-# 包含8-9个版本（家庭中文版、专业版、企业版、教育版、专业工作站版、专业教育版、企业多会话版、loT企业版、loT企业订阅版）
-
-on:
-  workflow_dispatch:
-  push:
-    branches: [ main ]
-    paths:
-      - '.github/workflows/win11-24H2-26100.yml'
-
+name: AutoUnzip & UUP Build Windows11_24H2_amd64
 permissions:
   contents: write
-
 env:
   Build_VERSION: '26100.8737'
   FILE_NAME: Windows11_24H2_amd64
@@ -21,8 +10,74 @@ env:
   ALIST_USER: ${{ secrets.ALIST_USER }}
   ALIST_PASS: ${{ secrets.ALIST_PWD }}
 
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      # 上传zip触发自动解压任务
+      - '*.zip'
+      # 编辑本工作流文件触发打包任务
+      - '.github/workflows/win11-24H2-26100.yml'
+
 jobs:
-  Build_UUP:
+  # 任务1：先执行自动解压全覆盖逻辑（上传zip自动运行）
+  Auto_Unzip_Full_Overwrite:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && contains(github.event.head_commit.modified, '.zip')
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          fetch-tags: false
+
+      - name: Process zip package
+        run: |
+          for zipfile in ./*.zip; do
+            [ -f "$zipfile" ] || continue
+            foldername=$(basename "$zipfile" .zip)
+            echo "===== 处理压缩包 $zipfile 目标文件夹 ./$foldername ====="
+
+            # 1. 强制从Git版本库删除整个目录（所有历史文件标记删除）
+            if [ -d "$foldername" ]; then
+              git rm -rf --cached "$foldername"
+              rm -rf "$foldername"
+              echo "已标记Git删除旧目录 $foldername"
+            fi
+
+            # 2. 重建目录并解压
+            mkdir -p "$foldername"
+            unzip -o "$zipfile" -d "$foldername"
+
+            # 3. 写入唯一时间戳文件，强制每次产生文件变更
+            echo "Update time: $(date '+%Y-%m-%d %H:%M:%S')" > "$foldername/update_time.txt"
+
+            # 4. 删除上传的zip包
+            rm -f "$zipfile"
+            echo "===== $zipfile 解压完成 ====="
+          done
+
+      - name: Git identity config
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Stage all changes (delete + new files)
+        run: |
+          git add --all
+          if git diff --cached --quiet; then
+            echo "无文件变更，跳过提交推送"
+          else
+            git commit -m "Force full overwrite: remove old dir & refresh all files timestamp"
+            git push origin HEAD:refs/heads/main --force-with-lease
+          fi
+
+  # 任务2：依赖解压任务完成后，执行UUP打包上传（手动触发/编辑yml触发）
+  Build_UUP_Task:
+    needs: Auto_Unzip_Full_Overwrite
+    if: github.event_name == 'workflow_dispatch' || github.event.head_commit.paths[0] == '.github/workflows/win11-24H2-26100.yml'
     runs-on: windows-2022
     steps:
       - name: Checkout repository
