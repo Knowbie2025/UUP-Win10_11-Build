@@ -1,57 +1,47 @@
-name: 上传Zip/修改auto-unzip-build.yml自动构建
+name: Auto Build UUP ISO
 on:
   push:
     paths:
-      - "*.zip"
+      - '*.zip' # 仅推送zip压缩包时触发
       - ".github/workflows/auto-unzip-build.yml"
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: windows-latest # Windows runner 原生支持批处理
     steps:
-      - name: 检出仓库代码
+      - name: 拉取仓库代码
         uses: actions/checkout@v4
 
-      - name: 删除旧目录并解压新版压缩包
+      - name: 匹配压缩包并解压
         shell: powershell
         run: |
-          $root = $env:GITHUB_WORKSPACE
-          $zipList = Get-ChildItem -Path $root -Filter *.zip
-          foreach ($zip in $zipList) {
-            $zipFull = $zip.FullName
-            $folderName = $zip.BaseName
-            $targetPath = Join-Path -Path $root -ChildPath $folderName
-
-            if (Test-Path -Path $targetPath) {
-              Remove-Item -Path $targetPath -Recurse -Force
-              Write-Host "已清除旧目录 $folderName"
-            }
-            New-Item -Path $targetPath -ItemType Directory -Force | Out-Null
-            Expand-Archive -Path $zipFull -DestinationPath $targetPath -Force
-            Write-Host "解压完成 $($zip.Name)"
-            Remove-Item -Path $zipFull -Force
+          # 遍历根目录所有zip文件
+          Get-ChildItem . -Filter *.zip | ForEach-Object {
+            $zipName = $_.BaseName
+            # 创建同名文件夹
+            New-Item -ItemType Directory -Path $zipName -Force
+            # 解压到对应目录
+            Expand-Archive -Path $_.FullName -DestinationPath $zipName -Force
+            Write-Host "已解压 $($_.Name) 到目录 $zipName"
           }
 
-      - name: 运行UUP构建脚本
+      - name: 执行UUP下载转换批处理
         shell: cmd
         run: |
           @echo off
-          for /d %%dir in (Windows*_*) do (
-            echo ======================================
-            echo 开始构建 %%dir
-            echo ======================================
-            cd %%dir
+          :: 遍历所有UUP目录执行脚本
+          for /d %%d in (Windows*_amd64 Windows*_x86 Windows*_arm64) do (
+            cd %%d
             if exist uup_download_windows.cmd (
+              echo 开始构建 %%d 镜像
               call uup_download_windows.cmd
-            ) else (
-              echo 缺少构建脚本，跳过
             )
             cd ..
           )
 
-      - name: 上传成品ISO
+      - name: 上传生成的ISO镜像
         uses: actions/upload-artifact@v4
         with:
           name: Windows-ISO-Output
-          path: "*.iso"
+          path: '*.iso'
           retention-days: 30
