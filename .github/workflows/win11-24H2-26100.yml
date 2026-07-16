@@ -15,8 +15,6 @@ on:
   push:
     branches: [ main ]
     paths:
-      # 上传zip触发自动解压任务
-      - '*.zip'
       # 编辑本工作流文件触发打包任务
       - '.github/workflows/win11-24H2-26100.yml'
 
