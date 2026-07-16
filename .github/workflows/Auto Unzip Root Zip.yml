@@ -3,7 +3,7 @@ on:
   push:
     branches: [ main ]
     paths:
-      - '*.zippp'
+      - '*.zip'
 jobs:
   unzip_job:
     runs-on: ubuntu-latest
