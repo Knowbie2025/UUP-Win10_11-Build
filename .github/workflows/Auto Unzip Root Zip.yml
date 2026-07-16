@@ -1,4 +1,4 @@
-name: Auto Unzip Root Zip File
+name: Auto Unzip Zip To Same Name Folder
 on:
   push:
     branches: [ main ]
@@ -14,16 +14,21 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-          fetch-tags: false # 不下载任何tag，从源头规避同名冲突
+          fetch-tags: false # 关闭拉取tag，避免main分支/tag同名冲突
 
-      - name: Unzip all zip to repo root
+      - name: Unzip each zip into its own folder
         run: |
           for zipfile in ./*.zip; do
             [ -f "$zipfile" ] || continue
-            echo "===== 正在解压 $zipfile ====="
-            unzip -o "$zipfile"
+            # 截取压缩包名称，去掉后缀.zip
+            foldername=$(basename "$zipfile" .zip)
+            echo "===== 创建文件夹 $foldername 并解压 $zipfile ====="
+            mkdir -p "$foldername"
+            # 解压到对应文件夹
+            unzip -o "$zipfile" -d "$foldername"
+            # 删除原上传的zip包
             rm -f "$zipfile"
-            echo "===== $zipfile 解压完成并删除 ====="
+            echo "===== $zipfile 解压完成，存放目录 ./$foldername ====="
           done
 
       - name: Git Config
@@ -38,7 +43,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "无解压文件变更，跳过提交"
           else
-            git commit -m "Auto unzip root zip file from push"
-            # 强制指定推送本地HEAD到远程main分支，绕过tag歧义
+            git commit -m "Auto unzip zip to same-name folder from push"
+            # 完整指定推送分支，彻底解决 refspec 歧义报错
             git push origin HEAD:refs/heads/main --force-with-lease
           fi
