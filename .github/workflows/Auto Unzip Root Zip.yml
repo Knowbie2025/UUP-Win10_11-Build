@@ -1,4 +1,4 @@
-name: Auto Unzip Full Overwrite With Timestamp
+name: Auto Unzip Full Overwrite All Files Force Refresh
 on:
   push:
     branches: [ main ]
@@ -8,47 +8,50 @@ jobs:
   unzip_job:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout full repo
+      - name: Checkout full history
         uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
           fetch-tags: false
 
-      - name: Process zip & full overwrite
+      - name: Process zip package
         run: |
           for zipfile in ./*.zip; do
             [ -f "$zipfile" ] || continue
             foldername=$(basename "$zipfile" .zip)
-            echo "===== 处理 $zipfile 目标目录 ./$foldername ====="
+            echo "===== 处理压缩包 $zipfile 目标文件夹 ./$foldername ====="
 
-            # 从Git版本库标记删除整个旧目录
+            # 1. 强制从Git版本库删除整个目录（所有历史文件标记删除）
             if [ -d "$foldername" ]; then
-              git rm -rf "$foldername"
-              echo "Git 删除旧目录 $foldername"
+              git rm -rf --cached "$foldername"
+              rm -rf "$foldername"
+              echo "已标记Git删除旧目录 $foldername"
             fi
 
+            # 2. 重建目录并解压
             mkdir -p "$foldername"
             unzip -o "$zipfile" -d "$foldername"
 
-            # 关键：生成唯一时间戳文件，强制产生文件变更
-            date +"%Y-%m-%d %H:%M:%S" > "$foldername/_auto_update_timestamp.txt"
-            
+            # 3. 写入唯一时间戳文件，强制每次产生文件变更
+            echo "Update time: $(date '+%Y-%m-%d %H:%M:%S')" > "$foldername/update_time.txt"
+
+            # 4. 删除上传的zip包
             rm -f "$zipfile"
             echo "===== $zipfile 解压完成 ====="
           done
 
-      - name: Git config
+      - name: Git identity config
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Commit & Push
+      - name: Stage all changes (delete + new files)
         run: |
           git add --all
           if git diff --cached --quiet; then
-            echo "无变更，跳过提交"
+            echo "无文件变更，跳过提交推送"
           else
-            git commit -m "Full overwrite: delete old dir + add timestamp mark"
+            git commit -m "Force full overwrite: remove old dir & refresh all files timestamp"
             git push origin HEAD:refs/heads/main --force-with-lease
           fi
