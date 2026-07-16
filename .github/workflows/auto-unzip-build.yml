@@ -1,5 +1,4 @@
 name: Zip上传自动构建UUP镜像
-# 触发规则：仅根目录新增/修改zip文件时执行
 on:
   push:
     paths:
@@ -9,25 +8,24 @@ jobs:
   build_task:
     runs-on: windows-latest
     steps:
-      # 1. 拉取仓库代码
       - name: 检出仓库文件
         uses: actions/checkout@v4
 
-      # 2. 自动解压所有zip到同名文件夹
-      - name: 解压压缩包至对应目录
+      - name: 解压压缩包（先删除旧目录再解压，完整替换）
         shell: powershell
         run: |
           Get-ChildItem . -Filter *.zip | ForEach-Object {
-            $zipFile = $_.FullName
-            $folderName = $_.BaseName
-            # 创建对应文件夹
-            New-Item -ItemType Directory -Path $folderName -Force
-            # 解压覆盖
-            Expand-Archive -Path $zipFile -DestinationPath $folderName -Force
-            Write-Host "✅ 解压完成：$($_.Name) → ./$folderName"
+              $zipFile = $_.FullName
+              $folderName = $_.BaseName
+              if (Test-Path $folderName) {
+                  Remove-Item -Path $folderName -Recurse -Force
+                  Write-Host "🗑️ 清除旧目录 $folderName"
+              }
+              New-Item -ItemType Directory -Path $folderName -Force
+              Expand-Archive -Path $zipFile -DestinationPath $folderName -Force
+              Write-Host "✅ 完整解压新版 $($_.Name) 至 ./$folderName"
           }
 
-      # 3. 遍历所有Windows目录，自动执行构建脚本
       - name: 执行UUP下载&封装ISO脚本
         shell: cmd
         run: |
@@ -45,21 +43,9 @@ jobs:
             cd ..
           )
 
-      # 4. 上传生成的ISO作为流水线产物
       - name: 上传成品ISO
         uses: actions/upload-artifact@v4
         with:
           name: Windows-ISO-Output
           path: "*.iso"
           retention-days: 30
-
-      # 可选：自动发布ISO到仓库Releases
-      - name: 自动发布到Releases
-        if: github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v1
-        with:
-          files: "*.iso"
-          tag_name: Build-${{ github.sha }}
-          name: 自动构建镜像 ${{ github.sha }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
