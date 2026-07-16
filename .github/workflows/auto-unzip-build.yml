@@ -1,47 +1,66 @@
-name: Auto Build UUP ISO
+name: Auto Unzip & Build UUP ISO
+# 仅当根目录上传 .zip 文件时触发流水线
 on:
   push:
     paths:
-      - '*.zip' # 仅推送zip压缩包时触发
+      - "*.zip"
       - ".github/workflows/auto-unzip-build.yml"
 
 jobs:
-  build:
-    runs-on: windows-latest # Windows runner 原生支持批处理
+  build_windows:
+    runs-on: windows-latest
     steps:
-      - name: 拉取仓库代码
+      # 拉取仓库全部代码
+      - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: 匹配压缩包并解压
+      # 自动解压所有根目录zip到同名文件夹
+      - name: Unzip archive to same folder
         shell: powershell
         run: |
-          # 遍历根目录所有zip文件
-          Get-ChildItem . -Filter *.zip | ForEach-Object {
-            $zipName = $_.BaseName
-            # 创建同名文件夹
-            New-Item -ItemType Directory -Path $zipName -Force
-            # 解压到对应目录
-            Expand-Archive -Path $_.FullName -DestinationPath $zipName -Force
-            Write-Host "已解压 $($_.Name) 到目录 $zipName"
+          Get-ChildItem -Path . -Filter *.zip | ForEach-Object {
+              $zipFile = $_.FullName
+              $folderName = $_.BaseName
+              # 创建对应空文件夹
+              New-Item -Path $folderName -ItemType Directory -Force
+              # 解压文件
+              Expand-Archive -Path $zipFile -DestinationPath $folderName -Force
+              Write-Host "✅ 已解压 $($_.Name) 至 ./$folderName"
           }
 
-      - name: 执行UUP下载转换批处理
+      # 遍历所有Windows目录，自动执行UUP批处理
+      - name: Run UUP download & convert script
         shell: cmd
         run: |
           @echo off
-          :: 遍历所有UUP目录执行脚本
-          for /d %%d in (Windows*_amd64 Windows*_x86 Windows*_arm64) do (
-            cd %%d
-            if exist uup_download_windows.cmd (
-              echo 开始构建 %%d 镜像
-              call uup_download_windows.cmd
-            )
-            cd ..
+          for /d %%dir in (Windows*_*) do (
+              echo ======================================
+              echo 正在处理目录: %%dir
+              echo ======================================
+              cd %%dir
+              if exist uup_download_windows.cmd (
+                  call uup_download_windows.cmd
+              ) else (
+                  echo ⚠️ %%dir 内未找到构建脚本，跳过
+              )
+              cd ..
           )
 
-      - name: 上传生成的ISO镜像
+      # 上传生成的ISO文件到流水线产物
+      - name: Upload ISO artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Windows-ISO-Output
-          path: '*.iso'
+          name: Built-Windows-ISO
+          path: "*.iso"
           retention-days: 30
+
+      # 可选：自动把ISO发布到Releases
+      - name: Release ISO to GitHub Releases
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: "*.iso"
+          tag_name: AutoBuild-${{ github.sha }}
+          name: Auto Build ISO ${{ github.sha }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
