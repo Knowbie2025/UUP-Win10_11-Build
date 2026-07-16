@@ -1,4 +1,4 @@
-name: Auto Unzip Build ISO
+name: Simple Unzip Build
 on:
   push:
     paths:
@@ -8,31 +8,14 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Unzip replace folder
+      - name: Unzip
         shell: powershell
         run: |
-          $root = $env:GITHUB_WORKSPACE
-          Get-ChildItem $root -Filter *.zip | ForEach-Object {
-            $zip = $_.FullName
-            $dirName = $_.BaseName
-            $targetDir = Join-Path $root $dirName
+          $p=$env:GITHUB_WORKSPACE;Get-ChildItem $p -Filter *.zip|%{$n=$_.BaseName;$d="$p\$n";if(Test-Path $d){Remove-Item $d -Recurse -Force};New-Item $d -ItemType Dir -Force;Expand-Archive $_.FullName $d -Force;Remove-Item $_.FullName -Force}
 
-            # Delete old folder
-            if (Test-Path $targetDir) {
-              Remove-Item $targetDir -Recurse -Force
-            }
-            # Create new folder
-            New-Item $targetDir -ItemType Directory -Force | Out-Null
-            # Extract zip
-            Expand-Archive $zip -DestinationPath $targetDir -Force
-            # Clean zip
-            Remove-Item $zip -Force
-          }
-
-      - name: Run UUP script
+      - name: Build
         shell: cmd
         run: |
           @echo off
@@ -42,9 +25,8 @@ jobs:
             cd ..
           )
 
-      - name: Upload ISO artifact
+      - name: Upload ISO
         uses: actions/upload-artifact@v4
         with:
-          name: Built-ISO
+          name: ISO
           path: *.iso
-          retention-days: 30
