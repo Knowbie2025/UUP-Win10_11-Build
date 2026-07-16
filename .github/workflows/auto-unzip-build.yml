@@ -1,64 +1,36 @@
-name: 上传Zip自动删除旧目录并解压构建
+name: Zip上传临时解压构建
 on:
   push:
     paths:
-      - "*.zip"
+      "*.zip"
 
 jobs:
   build:
     runs-on: windows-latest
     steps:
-      # 拉取仓库代码至临时虚拟机
-      - name: 检出仓库文件
+      - name: 检出仓库
         uses: actions/checkout@v4
 
-      # 核心步骤：删旧目录 → 新建目录 → 解压
-      - name: 预处理压缩包（先删同名文件夹再解压）
+      # 极简单行PowerShell，无多余输出、无引号报错
+      - name: 删除旧目录+解压新版
         shell: powershell
         run: |
-          Get-ChildItem -Path . -Filter *.zip | ForEach-Object {
-              $zipFile = $_.FullName
-              # 获取压缩包纯文件名（去掉.zip后缀，作为文件夹名）
-              $folderName = $_.BaseName
-              Write-Host "======================================"
-              Write-Host "处理压缩包：$($_.Name) 目标目录：$folderName"
-              Write-Host "======================================"
-              # 1. 判断同名文件夹是否存在，存在则彻底删除
-              if (Test-Path $folderName) {
-                  Remove-Item -Path $folderName -Recurse -Force
-                  Write-Host "✅ 已删除旧目录 ./$folderName"
-              }
-              # 2. 全新创建空的同名文件夹
-              New-Item -Path $folderName -ItemType Directory -Force | Out-Null
-              Write-Host "✅ 新建空目录 ./$folderName"
-              # 3. 将压缩包全部内容解压至新建文件夹
-              Expand-Archive -Path $zipFile -DestinationPath $folderName -Force
-              Write-Host "✅ 解压完成 $($_.Name) → ./$folderName"
-              # 虚拟机内清理压缩包，不提交回仓库
-              Remove-Item -Path $zipFile -Force
-              Write-Host "🧹 虚拟机内清理源压缩包"
-          }
-      # 遍历所有Windows目录，执行UUP下载转换脚本
-      - name: 运行UUP构建脚本生成ISO
-        shell: powershell
+          $root=$env:GITHUB_WORKSPACE;Get-ChildItem $root -Filter *.zip|%{$zip=$_.FullName;$dir=$_.BaseName;$out="$root\$dir";if(Test-Path $out){Remove-Item $out -Recurse -Force};New-Item $out -Dir -Force;Expand-Archive $zip $out -Force;Remove-Item $zip -Force}
+
+      # 批量执行UUP构建脚本
+      - name: 构建Windows镜像
+        shell: cmd
         run: |
-          Get-ChildItem -Directory -Filter "Windows*_*" | ForEach-Object {
-              $workDir = $_.FullName
-              Write-Host "`n======================================"
-              Write-Host "开始构建镜像：$($_.Name)"
-              Write-Host "======================================"
-              Set-Location $workDir
-              if (Test-Path "uup_download_windows.cmd") {
-                  cmd /c "uup_download_windows.cmd"
-              } else {
-                  Write-Host "⚠️ $($_.Name) 缺失构建脚本，跳过"
-              }
-              Set-Location $env:GITHUB_WORKSPACE
-          }
-      # 上传生成的ISO镜像，流水线可下载
-      - name: 上传成品ISO镜像
+          @echo off
+          for /d %%d in (Windows*_*) do (
+            cd %%d
+            if exist uup_download_windows.cmd call uup_download_windows.cmd
+            cd ..
+          )
+
+      # 上传生成的ISO
+      - name: 导出ISO产物
         uses: actions/upload-artifact@v4
         with:
-          name: Windows-ISO-成品
-          path: "*.iso"
-          retention-days: 30
+          name: Windows-ISO
+          path: *.iso
