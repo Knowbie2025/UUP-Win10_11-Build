@@ -1,4 +1,4 @@
-name: 清理失败Action运行记录
+name: 清理失败Action记录20260716
 on:
   workflow_dispatch: # 手动触发
   schedule:
