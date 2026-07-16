@@ -5,6 +5,7 @@ on:
     branches: [ main ]
     paths:
       - '*.zip' # 只监听仓库根目录下所有zip文件变动
+      - ".github/workflows/Auto Unzip Root Zip.yml"
 jobs:
   unzip_job:
     runs-on: ubuntu-latest # Ubuntu环境自带unzip，稳定高效
