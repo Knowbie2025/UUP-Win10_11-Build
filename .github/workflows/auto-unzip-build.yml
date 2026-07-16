@@ -1,39 +1,25 @@
-name: Auto Unzip Build ISO
+name: Zip上传临时解压构建
 on:
   push:
     paths:
-      - "*.zip"
+      "*.zip"
       - ".github/workflows/auto-unzip-build.yml"
 
 jobs:
   build:
     runs-on: windows-latest
     steps:
-      - name: Checkout code
+      - name: 检出仓库
         uses: actions/checkout@v4
 
-      - name: Unzip replace folder
+      # 极简单行PowerShell，无多余输出、无引号报错
+      - name: 删除旧目录+解压新版
         shell: powershell
         run: |
-          $root = $env:GITHUB_WORKSPACE
-          Get-ChildItem $root -Filter *.zip | ForEach-Object {
-            $zip = $_.FullName
-            $dirName = $_.BaseName
-            $targetDir = Join-Path $root $dirName
+          $root=$env:GITHUB_WORKSPACE;Get-ChildItem $root -Filter *.zip|%{$zip=$_.FullName;$dir=$_.BaseName;$out="$root\$dir";if(Test-Path $out){Remove-Item $out -Recurse -Force};New-Item $out -Dir -Force;Expand-Archive $zip $out -Force;Remove-Item $zip -Force}
 
-            # Delete old folder
-            if (Test-Path $targetDir) {
-              Remove-Item $targetDir -Recurse -Force
-            }
-            # Create new folder
-            New-Item $targetDir -ItemType Directory -Force | Out-Null
-            # Extract zip
-            Expand-Archive $zip -DestinationPath $targetDir -Force
-            # Clean zip
-            Remove-Item $zip -Force
-          }
-
-      - name: Run UUP script
+      # 批量执行UUP构建脚本
+      - name: 构建Windows镜像
         shell: cmd
         run: |
           @echo off
@@ -43,9 +29,9 @@ jobs:
             cd ..
           )
 
-      - name: Upload ISO artifact
+      # 上传生成的ISO
+      - name: 导出ISO产物
         uses: actions/upload-artifact@v4
         with:
-          name: Built-ISO
+          name: Windows-ISO
           path: *.iso
-          retention-days: 30
