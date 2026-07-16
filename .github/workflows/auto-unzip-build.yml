@@ -1,56 +1,75 @@
-name: Zip上传自动构建UUP镜像
+name: 上传Zip自动解压至同目录构建
 on:
   push:
     paths:
+      # 仅根目录zip文件推送触发
       - "*.zip"
 
 jobs:
   build_task:
     runs-on: windows-latest
     steps:
-      - name: 检出仓库文件
+      # 拉取仓库全部文件到虚拟机工作根目录
+      - name: 检出仓库代码
         uses: actions/checkout@v4
 
-      - name: 解压压缩包（先删旧目录，推送新版回仓库）
+      # 核心步骤：同目录删除旧文件夹、新建、解压
+      - name: 预处理压缩包（根目录同层级解压）
         shell: powershell
         run: |
-          Get-ChildItem . -Filter *.zip | ForEach-Object {
+          # 遍历仓库根目录所有zip
+          Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter *.zip | ForEach-Object {
               $zipFile = $_.FullName
+              # 压缩包文件名（去掉.zip）= 目标文件夹名
               $folderName = $_.BaseName
-              if (Test-Path $folderName) {
-                  Remove-Item -Path $folderName -Recurse -Force
-                  Write-Host "🗑️ 清除旧目录 $folderName"
+              $targetFolder = Join-Path $env:GITHUB_WORKSPACE $folderName
+
+              Write-Host "======================================"
+              Write-Host "处理压缩包：$($_.Name)"
+              Write-Host "目标解压目录（同根目录）：$targetFolder"
+              Write-Host "======================================"
+
+              # 1. 如果根目录已存在同名文件夹，强制递归删除
+              if (Test-Path $targetFolder) {
+                  Remove-Item -Path $targetFolder -Recurse -Force
+                  Write-Host "🗑️ 已删除根目录旧文件夹 $folderName"
               }
-              New-Item -ItemType Directory -Path $folderName -Force
-              Expand-Archive -Path $zipFile -DestinationPath $folderName -Force
-              Write-Host "✅ 完整解压新版 $($_.Name) 至 ./$folderName"
+
+              # 2. 在根目录新建空同名文件夹（和zip同层级）
+              New-Item -Path $targetFolder -ItemType Directory -Force | Out-Null
+              Write-Host "📁 在根目录新建文件夹 $folderName"
+
+              # 3. 解压zip到根目录同名文件夹（同目录）
+              Expand-Archive -Path $zipFile -DestinationPath $targetFolder -Force
+              Write-Host "✅ 解压完成 $($_.Name) → ./$folderName"
+
+              # 虚拟机内清理zip，仅临时生效，不提交仓库
               Remove-Item -Path $zipFile -Force
+              Write-Host "🧹 虚拟机内清理源压缩包"
           }
-          # 推送更新后的目录到远程仓库
-          git config --global user.name "Knowbie2025"
-          git config --global user.email "auto-build@github@example.com"
-          git add .
-          git commit -m "Auto replace folder by uploaded zip"
-          git push origin main
-      - name: 执行UUP下载&封装ISO脚本
+
+      # 遍历所有Windows目录执行UUP构建脚本
+      - name: 运行UUP下载转换脚本生成ISO
         shell: powershell
         run: |
-          Get-ChildItem -Directory -Filter "Windows*_*" | ForEach-Object {
-              $dir = $_.FullName
+          Get-ChildItem -Path $env:GITHUB_WORKSPACE -Directory -Filter "Windows*_*" | ForEach-Object {
+              $buildDir = $_.FullName
               Write-Host "======================================"
-              Write-Host "开始构建目录: $($_.Name)"
+              Write-Host "开始构建镜像：$($_.Name)"
               Write-Host "======================================"
-              Set-Location $dir
+              Set-Location $buildDir
               if (Test-Path "uup_download_windows.cmd") {
                   cmd /c "uup_download_windows.cmd"
               } else {
-                  Write-Host "❌ $($_.Name) 缺少构建脚本，跳过"
+                  Write-Host "⚠️ $($_.Name) 缺少构建脚本，跳过"
               }
               Set-Location $env:GITHUB_WORKSPACE
           }
-      - name: 上传成品ISO
+
+      # 上传生成的ISO为流水线产物，可下载
+      - name: 上传成品ISO镜像
         uses: actions/upload-artifact@v4
         with:
-          name: Windows-ISO-Output
+          name: Built-Windows-ISO
           path: "*.iso"
           retention-days: 30
