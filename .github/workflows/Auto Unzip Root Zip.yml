@@ -1,10 +1,9 @@
-name: Auto Unzip Zip To Same Name Folder (Overwrite Exist)
+name: Auto Unzip Zip To Same Name Folder Full Overwrite
 on:
   push:
     branches: [ main ]
     paths:
       - '*.zip'
-      - ".github/workflows/Auto Unzip Root Zip.yml"
 jobs:
   unzip_job:
     runs-on: ubuntu-latest
@@ -16,22 +15,26 @@ jobs:
           fetch-depth: 0
           fetch-tags: false
 
-      - name: Unzip into same name folder, overwrite all files
+      - name: Full Overwrite Unzip Logic
         run: |
           for zipfile in ./*.zip; do
             [ -f "$zipfile" ] || continue
             foldername=$(basename "$zipfile" .zip)
             echo "===== 处理压缩包 $zipfile，目标目录 ./$foldername ====="
-            # 可选：先清空原有文件夹，实现完整干净覆盖（整个目录清空重建）
+            
+            # 1. 本地彻底删除旧目录（清空所有历史文件）
             if [ -d "$foldername" ]; then
-              echo "目录已存在，清空旧文件"
+              echo "删除原有完整目录 $foldername"
               rm -rf "$foldername"
             fi
             mkdir -p "$foldername"
-            # -o 强制覆盖内部同名文件
+
+            # 2. 解压全部文件，强制覆盖
             unzip -o "$zipfile" -d "$foldername"
+            
+            # 3. 删除上传的zip包
             rm -f "$zipfile"
-            echo "===== $zipfile 解压完成，已全部覆盖旧内容 ====="
+            echo "===== $zipfile 解压完成，目录已完全替换 ====="
           done
 
       - name: Git Config
@@ -40,12 +43,14 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global push.default current
 
-      - name: Commit & Push Changes
+      - name: Stage all changes (包含删除的旧文件)
         run: |
+          # --update 自动识别已删除、新增、修改的文件
+          git add --update .
           git add .
           if git diff --cached --quiet; then
             echo "无文件变更，跳过提交"
           else
-            git commit -m "Auto unzip & overwrite folder from zip push"
+            git commit -m "Auto unzip & fully overwrite folder, clear old files"
             git push origin HEAD:refs/heads/main --force-with-lease
           fi
