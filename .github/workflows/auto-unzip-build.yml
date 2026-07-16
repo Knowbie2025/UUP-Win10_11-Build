@@ -1,4 +1,4 @@
-name: Zip上传自动解压构建
+name: Auto Unzip Build ISO
 on:
   push:
     paths:
@@ -6,57 +6,46 @@ on:
       - ".github/workflows/auto-unzip-build.yml"
 
 jobs:
-  build_task:
+  build:
     runs-on: windows-latest
     steps:
-      - name: 检出仓库代码
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: 预处理压缩包（根目录同层级解压）
+      - name: Unzip replace folder
         shell: powershell
         run: |
-          $workRoot = $env:GITHUB_WORKSPACE
-          Get-ChildItem -Path $workRoot -Filter *.zip | ForEach-Object {
-              $zipFile = $_.FullName
-              $folderName = $_.BaseName
-              $targetFolder = Join-Path -Path $workRoot -ChildPath $folderName
+          $root = $env:GITHUB_WORKSPACE
+          Get-ChildItem $root -Filter *.zip | ForEach-Object {
+            $zip = $_.FullName
+            $dirName = $_.BaseName
+            $targetDir = Join-Path $root $dirName
 
-              Write-Host "处理压缩包：$($_.Name)"
-              Write-Host "目标目录：$targetFolder"
-
-              # 删除旧目录
-              if (Test-Path $targetFolder) {
-                  Remove-Item -Path $targetFolder -Recurse -Force
-                  Write-Host "已删除旧目录 $folderName"
-              }
-              # 新建目录
-              New-Item -Path $targetFolder -ItemType Directory -Force | Out-Null
-              # 解压
-              Expand-Archive -Path $zipFile -DestinationPath $targetFolder -Force
-              Write-Host "解压完成 $($_.Name)"
-              # 清理zip
-              Remove-Item -Path $zipFile -Force
+            # Delete old folder
+            if (Test-Path $targetDir) {
+              Remove-Item $targetDir -Recurse -Force
+            }
+            # Create new folder
+            New-Item $targetDir -ItemType Directory -Force | Out-Null
+            # Extract zip
+            Expand-Archive $zip -DestinationPath $targetDir -Force
+            # Clean zip
+            Remove-Item $zip -Force
           }
 
-      - name: 执行UUP构建脚本
-        shell: powershell
+      - name: Run UUP script
+        shell: cmd
         run: |
-          $workRoot = $env:GITHUB_WORKSPACE
-          Get-ChildItem -Path $workRoot -Directory -Filter "Windows*_*" | ForEach-Object {
-              $dir = $_.FullName
-              Write-Host "开始构建：$($_.Name)"
-              Set-Location $dir
-              if (Test-Path "uup_download_windows.cmd") {
-                  cmd /c uup_download_windows.cmd
-              } else {
-                  Write-Host "缺少脚本，跳过"
-              }
-              Set-Location $workRoot
-          }
+          @echo off
+          for /d %%d in (Windows*_*) do (
+            cd %%d
+            if exist uup_download_windows.cmd call uup_download_windows.cmd
+            cd ..
+          )
 
-      - name: 上传ISO产物
+      - name: Upload ISO artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Windows-ISO
-          path: "*.iso"
+          name: Built-ISO
+          path: *.iso
           retention-days: 30
