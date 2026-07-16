@@ -1,4 +1,4 @@
-name: Auto Unzip Zip To Same Name Folder
+name: Auto Unzip Zip To Same Name Folder (Overwrite Exist)
 on:
   push:
     branches: [ main ]
@@ -14,21 +14,24 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-          fetch-tags: false # 关闭拉取tag，避免main分支/tag同名冲突
+          fetch-tags: false
 
-      - name: Unzip each zip into its own folder
+      - name: Unzip into same name folder, overwrite all files
         run: |
           for zipfile in ./*.zip; do
             [ -f "$zipfile" ] || continue
-            # 截取压缩包名称，去掉后缀.zip
             foldername=$(basename "$zipfile" .zip)
-            echo "===== 创建文件夹 $foldername 并解压 $zipfile ====="
+            echo "===== 处理压缩包 $zipfile，目标目录 ./$foldername ====="
+            # 可选：先清空原有文件夹，实现完整干净覆盖（整个目录清空重建）
+            if [ -d "$foldername" ]; then
+              echo "目录已存在，清空旧文件"
+              rm -rf "$foldername"
+            fi
             mkdir -p "$foldername"
-            # 解压到对应文件夹
+            # -o 强制覆盖内部同名文件
             unzip -o "$zipfile" -d "$foldername"
-            # 删除原上传的zip包
             rm -f "$zipfile"
-            echo "===== $zipfile 解压完成，存放目录 ./$foldername ====="
+            echo "===== $zipfile 解压完成，已全部覆盖旧内容 ====="
           done
 
       - name: Git Config
@@ -37,13 +40,12 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global push.default current
 
-      - name: Commit & Push Unzipped Files
+      - name: Commit & Push Changes
         run: |
           git add .
           if git diff --cached --quiet; then
-            echo "无解压文件变更，跳过提交"
+            echo "无文件变更，跳过提交"
           else
-            git commit -m "Auto unzip zip to same-name folder from push"
-            # 完整指定推送分支，彻底解决 refspec 歧义报错
+            git commit -m "Auto unzip & overwrite folder from zip push"
             git push origin HEAD:refs/heads/main --force-with-lease
           fi
