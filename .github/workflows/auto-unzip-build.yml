@@ -1,37 +1,39 @@
-name: Zip上传临时解压构建
+name: 上传Zip临时解压构建镜像
 on:
   push:
     paths:
-      "*.zip"
+      - "*.zip"
       - ".github/workflows/auto-unzip-build.yml"
 
 jobs:
   build:
     runs-on: windows-latest
     steps:
-      - name: 检出仓库
+      - name: 检出仓库代码
         uses: actions/checkout@v4
 
-      # 极简单行PowerShell，无多余输出、无引号报错
-      - name: 删除旧目录+解压新版
+      # 极简单行PowerShell，无多余输出，规避引号/字符串解析错误
+      - name: 删除旧目录并解压新版压缩包
         shell: powershell
         run: |
-          $root=$env:GITHUB_WORKSPACE;Get-ChildItem $root -Filter *.zip|%{$zip=$_.FullName;$dir=$_.BaseName;$out="$root\$dir";if(Test-Path $out){Remove-Item $out -Recurse -Force};New-Item $out -Dir -Force;Expand-Archive $zip $out -Force;Remove-Item $zip -Force}
+          $root=$env:GITHUB_WORKSPACE;Get-ChildItem $root -Filter *.zip|%{$z=$_.FullName;$d=$_.BaseName;$out="$root\$d";if(Test-Path $out){Remove-Item $out -Recurse -Force};New-Item $out -Dir -Force;Expand-Archive $z $out -Force;Remove-Item $z -Force}
 
-      # 批量执行UUP构建脚本
-      - name: 构建Windows镜像
+      # 批量执行UUP下载转换批处理
+      - name: 运行UUP构建脚本生成ISO
         shell: cmd
         run: |
           @echo off
-          for /d %%d in (Windows*_*) do (
-            cd %%d
+          for /d %%dir in (Windows*_*) do (
+            echo 正在构建 %%dir
+            cd %%dir
             if exist uup_download_windows.cmd call uup_download_windows.cmd
             cd ..
           )
 
-      # 上传生成的ISO
-      - name: 导出ISO产物
+      # 上传生成的ISO为流水线产物
+      - name: 上传成品ISO
         uses: actions/upload-artifact@v4
         with:
-          name: Windows-ISO
-          path: *.iso
+          name: Windows-Built-ISO
+          path: "*.iso"
+          retention-days: 30
