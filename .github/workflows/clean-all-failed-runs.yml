@@ -1,0 +1,19 @@
+name: 自动清理失败Action运行记录
+on:
+  schedule:
+    # 每天凌晨2点执行
+    - cron: "0 2 * * *"
+  workflow_dispatch: # 支持手动一键触发
+
+jobs:
+  clean:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 删除失败的Workflow运行记录
+        uses: rokroskar/workflow-run-cleanup-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          keep_success: true
+          keep_cancelled: true
+          keep_failed: false
