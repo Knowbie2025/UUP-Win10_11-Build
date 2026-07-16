@@ -1,19 +1,28 @@
-name: 自动清理失败Action运行记录
+name: 清理失败Action运行记录
 on:
+  workflow_dispatch: # 手动触发
   schedule:
-    # 每天凌晨2点执行
     - cron: "0 2 * * *"
-  workflow_dispatch: # 支持手动一键触发
 
 jobs:
   clean:
     runs-on: ubuntu-latest
     steps:
-      - name: 删除失败的Workflow运行记录
-        uses: rokroskar/workflow-run-cleanup-action@master
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          keep_success: true
-          keep_cancelled: true
-          keep_failed: false
+      - name: 清理所有失败的运行记录
+        shell: pwsh
+        run: |
+          $headers = @{
+            Authorization = "Bearer ${{ secrets.GITHUB_TOKEN }}"
+            Accept = "application/vnd.github.v3+json"
+          }
+          $owner = "Knowbie2025"
+          $repo = "UUP-Win10_11-Build"
+          # 获取全部运行记录
+          $runs = Invoke-RestMethod -Uri "https://api.github.com/repos/$owner/$repo/actions/runs?per_page=100" -Headers $headers
+          foreach ($run in $runs.workflow_runs) {
+            # 仅删除状态为failure失败的记录
+            if ($run.conclusion -eq "failure") {
+              Invoke-RestMethod -Uri $run.url -Method Delete -Headers $headers
+              Write-Host "已删除失败运行：$($run.id)"
+            }
+          }
