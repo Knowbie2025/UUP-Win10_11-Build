@@ -1,0 +1,46 @@
+name: Auto Unzip Root Zip File
+# 触发规则：main分支推送，仅当仓库根目录新增/修改zip时运行
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '*.zip' # 只监听仓库根目录下所有zip文件变动
+jobs:
+  unzip_job:
+    runs-on: ubuntu-latest # Ubuntu环境自带unzip，稳定高效
+    steps:
+      # 1. 拉取完整仓库代码
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 拉取完整git历史，保证提交推送正常
+      # 2. 遍历根目录所有zip，解压到仓库根目录
+      - name: Unzip all zip to repo root
+        run: |
+          # 遍历仓库根目录全部zip文件
+          for zipfile in ./*.zip; do
+            # 判断是否存在zip文件
+            [ -f "$zipfile" ] || continue
+            echo "===== 正在解压 $zipfile ====="
+            # 解压到当前仓库根目录，覆盖已有文件
+            unzip -o "$zipfile"
+            # 解压完成后删除原zip包（可选，不需要删除就注释此行）
+            rm -f "$zipfile"
+            echo "===== $zipfile 解压完成并删除 ====="
+          done
+      # 3. 配置git提交身份（actions机器人账号）
+      - name: Git Config
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+      # 4. 检测文件变更，自动提交推送
+      - name: Commit & Push Unzipped Files
+        run: |
+          git add .
+          # 判断是否有文件改动，无改动则跳过提交
+          if git diff --cached --quiet; then
+            echo "无解压文件变更，跳过提交"
+          else
+            git commit -m "Auto unzip root zip file from push"
+            git push origin main
+          fi
