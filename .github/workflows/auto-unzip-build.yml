@@ -1,70 +1,56 @@
-name: 上传Zip自动删除旧目录并解压构建
+name: Zip上传自动构建UUP镜像
 on:
   push:
     paths:
       - "*.zip"
 
 jobs:
-  build:
+  build_task:
     runs-on: windows-latest
     steps:
-      # 拉取仓库代码至临时虚拟机
       - name: 检出仓库文件
         uses: actions/checkout@v4
 
-      # 核心步骤：删旧目录 → 新建目录 → 解压
-      - name: 预处理压缩包（先删同名文件夹再解压）
+      - name: 解压压缩包（先删旧目录，推送新版回仓库）
         shell: powershell
         run: |
-          Get-ChildItem -Path . -Filter *.zip | ForEach-Object {
+          Get-ChildItem . -Filter *.zip | ForEach-Object {
               $zipFile = $_.FullName
-              # 获取压缩包纯文件名（去掉.zip后缀，作为文件夹名）
               $folderName = $_.BaseName
-              Write-Host "======================================"
-              Write-Host "处理压缩包：$($_.Name) 目标目录：$folderName"
-              Write-Host "======================================"
-
-              # 1. 判断同名文件夹是否存在，存在则彻底删除
               if (Test-Path $folderName) {
                   Remove-Item -Path $folderName -Recurse -Force
-                  Write-Host "✅ 已删除旧目录 ./$folderName"
+                  Write-Host "🗑️ 清除旧目录 $folderName"
               }
-
-              # 2. 全新创建空的同名文件夹
-              New-Item -Path $folderName -ItemType Directory -Force | Out-Null
-              Write-Host "✅ 新建空目录 ./$folderName"
-
-              # 3. 将压缩包全部内容解压至新建文件夹
+              New-Item -ItemType Directory -Path $folderName -Force
               Expand-Archive -Path $zipFile -DestinationPath $folderName -Force
-              Write-Host "✅ 解压完成 $($_.Name) → ./$folderName"
-
-              # 虚拟机内清理压缩包，不提交回仓库
+              Write-Host "✅ 完整解压新版 $($_.Name) 至 ./$folderName"
               Remove-Item -Path $zipFile -Force
-              Write-Host "🧹 虚拟机内清理源压缩包"
           }
-
-      # 遍历所有Windows目录，执行UUP下载转换脚本
-      - name: 运行UUP构建脚本生成ISO
+          # 推送更新后的目录到远程仓库
+          git config --global user.name "Knowbie2025"
+          git config --global user.email "auto-build@github@example.com"
+          git add .
+          git commit -m "Auto replace folder by uploaded zip"
+          git push origin main
+      - name: 执行UUP下载&封装ISO脚本
         shell: powershell
         run: |
           Get-ChildItem -Directory -Filter "Windows*_*" | ForEach-Object {
-              $workDir = $_.FullName
-              Write-Host "`n======================================"
-              Write-Host "开始构建镜像：$($_.Name)"
+              $dir = $_.FullName
               Write-Host "======================================"
-              Set-Location $workDir
+              Write-Host "开始构建目录: $($_.Name)"
+              Write-Host "======================================"
+              Set-Location $dir
               if (Test-Path "uup_download_windows.cmd") {
                   cmd /c "uup_download_windows.cmd"
               } else {
-                  Write-Host "⚠️ $($_.Name) 缺失构建脚本，跳过"
+                  Write-Host "❌ $($_.Name) 缺少构建脚本，跳过"
               }
               Set-Location $env:GITHUB_WORKSPACE
           }
-
-      # 上传生成的ISO镜像，流水线可下载
-      - name: 上传成品ISO镜像
+      - name: 上传成品ISO
         uses: actions/upload-artifact@v4
         with:
-          name: Windows-ISO-成品
+          name: Windows-ISO-Output
           path: "*.iso"
           retention-days: 30
