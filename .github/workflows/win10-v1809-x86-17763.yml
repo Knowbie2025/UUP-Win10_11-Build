@@ -13,7 +13,7 @@ permissions:
   contents: write
 
 env:
-  Build_VERSION: '17763.8880'
+  Build_VERSION: '17763.9121'
   FILE_NAME: Windows10_v1809_x86
   FIX_RELEASE_TAG: Windows10_v1809_x86
   ALI_YUN_DRIVE_UPLOAD_PATH: Windows_10_11_ISO/Windows10_v1809_x86
