@@ -1,4 +1,4 @@
-name: Windows11_26H2_amd64
+name: Windows11_26H2A_amd64
 
 # 包含8-9个版本（家庭中文版、专业版、企业版、教育版、专业工作站版、专业教育版、企业多会话版、loT企业版、loT企业订阅版）
 
@@ -7,16 +7,16 @@ on:
   push:
     branches: [ main ]
     paths:
-      - '.github/workflows/win11-26H2-28020.yml'
+      - '.github/workflows/win11-26H2A-28020.yml'
 
 permissions:
   contents: write
 
 env:
   Build_VERSION: '28020.2818'
-  FILE_NAME: Windows11_26H2_amd64
-  FIX_RELEASE_TAG: Windows11_26H2_amd64
-  ALI_YUN_DRIVE_UPLOAD_PATH: Windows_10_11_ISO/Windows11_26H2_amd64
+  FILE_NAME: Windows11_26H2A_amd64
+  FIX_RELEASE_TAG: Windows11_26H2A_amd64
+  ALI_YUN_DRIVE_UPLOAD_PATH: Windows_10_11_ISO/Windows11_26H2A_amd64
   ALIST_URL: ${{ secrets.ALIST_DOMAIN }}
   ALIST_USER: ${{ secrets.ALIST_USER }}
   ALIST_PASS: ${{ secrets.ALIST_PWD }}
