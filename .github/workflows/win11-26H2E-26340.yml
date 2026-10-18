@@ -13,7 +13,7 @@ permissions:
   contents: write
 
 env:
-  Build_VERSION: '26340.9445'
+  Build_VERSION: '26340.9750'
   FILE_NAME: Windows11_26H2E_amd64
   FIX_RELEASE_TAG: Windows11_26H2E_amd64
   ALI_YUN_DRIVE_UPLOAD_PATH: Windows_10_11_ISO/Windows11_26H2E_amd64
