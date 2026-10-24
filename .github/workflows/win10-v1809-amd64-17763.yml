@@ -1,6 +1,6 @@
 name: Windows10_v1809_amd64
 
-# 包含8-9个版本   （家庭中文版、专业版、企业版、教育版、专业工作站版、专业教育版、企业多会话版、loT企业版、loT企业订阅版）
+# 包含8-9个版本 （家庭中文版、专业版、企业版、教育版、专业工作站版、专业教育版、企业多会话版、loT企业版、loT企业订阅版）
 
 on:
   workflow_dispatch:
@@ -13,7 +13,7 @@ permissions:
   contents: write
 
 env:
-  Build_VERSION: '17763.9376'
+  Build_VERSION: '17763.9247'
   FILE_NAME: Windows10_v1809_amd64
   FIX_RELEASE_TAG: Windows10_v1809_amd64
   ALI_YUN_DRIVE_UPLOAD_PATH: Windows_10_11_ISO/Windows10_v1809_amd64
