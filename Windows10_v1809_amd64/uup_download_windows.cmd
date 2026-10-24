@@ -1,30 +1,28 @@
 @echo off
-:: Generated on 2026-10-24 09:00:57 GMT
-
-:: Proxy configuration
-:: If you need to configure a proxy to be able to connect to the internet,
-:: then you can do this by configuring the all_proxy environment variable.
-:: By default this variable is commented out, configuring aria2c to use 
-:: the proxy settings specified by the system.
+:: rem 生成时间 2026-10-24 14:03:49 GMT
+:: 代理配置
+:: 如果你需要配置一个代理服务器，以便能够连接到 Internet，
+:: 那么你可以通过配置 all_proxy 环境变量来实现。
+:: 默认情况下，此变量为空，即配置 aria2c 不使用任何代理。
 ::
-:: Usage: set "all_proxy=proxy_address"
-:: For example: set "all_proxy=127.0.0.1:8888"
+:: 用法：set "all_proxy=proxy_address"
+:: 示例：set "all_proxy=127.0.0.1:8888"
 ::
-:: More information how to use this can be found at:
+:: 有关如何使用的更多信息可以在以下网站找到：
 :: https://aria2.github.io/manual/en/html/aria2c.html#cmdoption-all-proxy
 :: https://aria2.github.io/manual/en/html/aria2c.html#environment
 
-:: Uncomment the following line to override the proxy settings specified
-:: by the system.
+:: 取消注释以下行以覆盖系统指定的代理设置。
+:: 
 ::
 :: set "all_proxy="
 
-:: End of proxy configuration
+:: 代理配置结束
 
 cd /d "%~dp0"
 if NOT "%cd%"=="%cd: =%" (
-    echo Current directory contains spaces in its path.
-    echo Please move or rename the directory to one not containing spaces.
+    echo 当前目录的路径中包含空格。
+    echo 请将目录移动或重命名为不包含空格的目录。
     echo.
     pause
     goto :EOF
@@ -42,7 +40,7 @@ powershell -NoProfile Start-Process -FilePath '%COMSPEC%' ^
 
 IF %ERRORLEVEL% GTR 0 (
     echo =====================================================
-    echo This script needs to be executed as an administrator.
+    echo 此脚本需要以管理员身份执行。
     echo =====================================================
     echo.
     pause
@@ -52,7 +50,7 @@ SETLOCAL DISABLEDELAYEDEXPANSION
 goto :EOF
 
 :START_PROCESS
-title 17763.9247_amd64_zh-cn_multi_67377253 download
+title 17763.9376_amd64_zh-cn_multi_814acacb download
 
 set "aria2=files\aria2c.exe"
 set "a7z=files\7zr.exe"
@@ -63,7 +61,7 @@ set "destDir=UUPs"
 powershell -NoProfile -ExecutionPolicy Unrestricted .\files\get_aria2.ps1 || (pause & exit /b 1)
 echo.
 
-echo Downloading the UUP converter...
+echo 正在下载 UUP 转换器...
 "%aria2%" --no-conf --async-dns=false --console-log-level=warn --log-level=info --log="aria2_download.log" -x16 -s16 -j2 -c -R -d"files" -i"files\converter_windows"
 if %ERRORLEVEL% GTR 0 call :DOWNLOAD_CONVERTER_ERROR & exit /b 1
 echo.
@@ -73,13 +71,13 @@ if NOT EXIST CustomAppsList.txt goto :NO_FILE_ERROR
 if NOT EXIST %a7z% goto :NO_FILE_ERROR
 if NOT EXIST %uupConv% goto :NO_FILE_ERROR
 
-echo Extracting UUP converter...
+echo 正在提取 UUP 转换器...
 "%a7z%" -x!ConvertConfig.ini -x!CustomAppsList.txt -y x "%uupConv%" >NUL
 echo.
 
 :DOWNLOAD_UUPS
-echo Retrieving aria2 script for the UUP set...
-"%aria2%" --no-conf --async-dns=false --console-log-level=warn --log-level=info --log="aria2_download.log" -o"%aria2Script%" --allow-overwrite=true --auto-file-renaming=false "https://uupdump.net/get.php?id=67377253-db93-4c05-b66d-a05e70021a4e&pack=zh-cn&edition=corecountryspecific%%3Bprofessional&aria2=2"
+echo 正在下载 UUP 文件的 aria2 脚本...
+"%aria2%" --no-conf --async-dns=false --console-log-level=warn --log-level=info --log="aria2_download.log" -o"%aria2Script%" --allow-overwrite=true --auto-file-renaming=false "https://uupdump.cn/get.php?id=814acacb-6203-4083-b0f0-21746910e3a9&pack=zh-cn&edition=professional;corecountryspecific&aria2=2&expires=1793023429&token=78e27906895e15a9a0e5066a0947de2884f254355a320a2cec70fcd88a79060d"
 if %ERRORLEVEL% GTR 0 call :DOWNLOAD_ERROR & exit /b 1
 echo.
 
@@ -92,8 +90,8 @@ if NOT [%DETECTED_ERROR%] == [] (
     goto :EOF
 )
 
-echo Downloading the UUP set...
-"%aria2%" --no-conf --async-dns=false --console-log-level=warn --log-level=info --log="aria2_download.log" -x16 -s16 -j5 -c -R -d"%destDir%" -i"%aria2Script%"
+echo 正在下载 UUP 文件...
+"%aria2%" --no-conf --async-dns=false --console-log-level=warn --log-level=info --log="aria2_download.log" -x16 -s16 -j25 -c -R -d"%destDir%" -i"%aria2Script%"
 if %ERRORLEVEL% GTR 0 goto :DOWNLOAD_UUPS & exit /b 1
 
 if EXIST convert-UUP.cmd goto :START_CONVERT
@@ -105,19 +103,31 @@ call convert-UUP.cmd
 goto :EOF
 
 :NO_FILE_ERROR
-echo We couldn't find one of needed files for this script.
+echo 我们找不到此脚本所需的文件之一.
 pause
 goto :EOF
 
 :DOWNLOAD_CONVERTER_ERROR
 echo.
-echo An error has occurred while downloading the UUP converter.
+echo 下载 UUP 转换器时发生错误。
 pause
 goto :EOF
 
 :DOWNLOAD_ERROR
+findstr /C:"status=403" "aria2_download.log" >nul 2>&1
+if not errorlevel 1 (
+    echo.
+    echo ================================================
+    echo 下载令牌已过期、无效或被修改。
+    echo 请返回 https://uupdump.cn/ 重新生成下载包。
+    echo 已经下载完成的文件可以保留，无需重新下载。
+    echo ================================================
+    echo.
+    pause
+    goto :EOF
+)
 echo.
-echo We have encountered an error while downloading files.
+echo 我们遇到了一个错误 while downloading files.
 pause
 goto :EOF
 
